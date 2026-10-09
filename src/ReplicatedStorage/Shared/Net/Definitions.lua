@@ -96,6 +96,12 @@ local Definitions: { [string]: RemoteDef } = {
 	ProgressionResult = toClient(), -- (ok, action, reason, payload) outcome of a progression request, for toasts
 	LevelUp = toClient(), -- (characterModel, level) someone nearby levelled up: draw the pillar of light
 	SpellCooldowns = toClient(), -- ({ [spellId]: serverTimeReady }) cooldowns changed on the server (Arcblade hits, Relay)
+
+	-- Guardians (Phase 10). Payloads per kind: docs/PHASE10_GUARDIAN.md section 3.
+	GuardianEvent = toClient(), -- (kind "Gather"|"Intro"|"Phase"|"Tide"|"Victory"|"Wipe"|"Banner", payload)
+	-- Ground telegraph for any enemy: (shape "Circle"|"Ring"|"Line"|"Cone", cframe, sizeA, sizeB,
+	-- duration, flags) - flags bit 1 = unparryable (red), bit 2 = cframe is relative to the attacker's root
+	Telegraph = toClient(),
 }
 
 return table.freeze(Definitions)

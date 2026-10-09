@@ -230,6 +230,18 @@ return TableUtil.DeepFreeze({
 	WeatherBlendSeconds = 20, -- how long a weather change takes to fade in
 	RainParticleRate = 450, -- at Rain = 1, scaled down on low graphics quality
 
+	-- Music (MusicController). One layer plays at a time, cross-faded over CrossfadeSeconds; the
+	-- MusicVolume setting scales it. A track id must be licensed audio (Creator Store); an empty id
+	-- means that layer is silent and the ambience bed carries the moment alone.
+	Music = {
+		CrossfadeSeconds = 2,
+		Volume = 0.5,
+		-- The 3-phase Guardian track (Spec Section 13), one layer per phase, plus the victory sting.
+		Guardian = {
+			Brinewarden = { Phase1 = "", Phase2 = "", Phase3 = "", Victory = "" },
+		} :: { [string]: { Phase1: string, Phase2: string, Phase3: string, Victory: string } },
+	},
+
 	-- Ambient beds per region (Layouts' Region names). One bed plays at a time, cross-faded.
 	Ambience = {
 		Town = { Day = "rbxassetid://9112903933", Night = "rbxassetid://9112764573", Volume = 0.22 },

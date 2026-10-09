@@ -32,13 +32,28 @@ return TableUtil.DeepFreeze({
 		DecayPerSecond = 0.02,
 	},
 
+	-- Floor Guardians (Phase 10). Per-Guardian data lives in Shared.Data.Guardians.
 	Guardian = {
 		HealthScalePerExtraPlayer = 0.75, -- BaseHP * (1 + 0.75 * (players - 1))
 		MaxPlayers = 8,
 		PhaseThresholds = { 1.0, 0.6, 0.25 },
-		IntroDuration = 4,
+		IntroDuration = 4, -- default when a Guardian sets no Intro
 		WeakPointDamageMultiplier = 1.5,
 		WeakPointPostureMultiplier = 2,
+		WeakPointArc = 90, -- degrees, centred on the weak side (back, or front in a core phase)
+		MinTelegraph = 0.4, -- spec: no attack winds up faster than this, whatever the phase scale
+		GatherSeconds = 10, -- after the first challenger, others at the gate have this long to join
+		GatherRadius = 60, -- studs from the gate's prompt that count as "at the gate"
+		ArenaOrigin = Vector3.new(-5200, -300, 0), -- arena copies are laid out from here (opposite side from the dungeons)
+		ArenaSpacing = 700, -- along +Z
+		MaxArenas = 8,
+		CloseAfterSeconds = 6, -- after a victory or wipe, the arena closes this long later
+		ContributionDamage = 0.02, -- reward share: this much of the max health dealt...
+		ContributionSeconds = 45, -- ...or this long alive inside the arena
+		BlockingMemory = 1.5, -- a target that blocked this recently counts as "blocking" (grab bait)
+		VictorySlowMo = 1.6, -- seconds of the client's slow-motion defeat moment
+		AnnounceTopic = "SpireGuardianCleared", -- MessagingService topic for cross-server banners
+		AnnounceCooldown = 30, -- seconds between this server's cross-server publishes
 	},
 
 	Elite = {

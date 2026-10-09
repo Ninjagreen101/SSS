@@ -43,6 +43,14 @@
 		MobState                                  -- Enums.MobState (Idle, Chase, Attack, ...)
 		Elite                                     -- true for elite variants
 		MobBlow                                   -- "slot;windup;serverTime;telegraph" each blow, for client animation
+		                                          -- (telegraph 0 = none, 1 = warning glow, 2 = unparryable: red ember glint)
+
+	Guardian attributes (on a Floor Guardian's Model, server-written; Phase 10):
+		GuardianId                                -- key into Shared.Data.Guardians
+		GuardianPhase                             -- 1..3
+		GuardianTide, GuardianTideEndsAt          -- "Calm" | "High" | "Ebb", and when the current tide turns
+		FightStartedAt                            -- server time the fight began (after the intro)
+		LockName, Enabled                         -- on LockPoint attachments inside the model
 
 	Instance attributes (set in the world):
 		WaystoneId, DefaultWaystone               -- on Waystone models
@@ -101,6 +109,14 @@ local Attributes = {
 	Elite = "Elite",
 	MobBlow = "MobBlow",
 
+	GuardianId = "GuardianId",
+	GuardianPhase = "GuardianPhase",
+	GuardianTide = "GuardianTide",
+	GuardianTideEndsAt = "GuardianTideEndsAt",
+	FightStartedAt = "FightStartedAt",
+	LockName = "LockName",
+	Enabled = "Enabled",
+
 	WaystoneId = "WaystoneId",
 	DefaultWaystone = "DefaultWaystone",
 	DummyType = "DummyType",
@@ -126,6 +142,8 @@ local Tags = {
 	CurrentCanal = "CurrentCanal", -- standing near refills Current
 	LanternReveal = "LanternReveal", -- hidden until a Lantern Beacon comes close
 	ItemStation = "ItemStation", -- Forge, Armorer, Alchemy, Loom, Altar, Shop, TokenShop, Bank
+	Guardian = "Guardian", -- a live Floor Guardian model (boss bar instead of a nameplate)
+	GuardianGate = "SpireGuardianGate", -- the challenge prompt part at a Guardian's gate
 }
 
 -- Status attribute name for a status, e.g. "StatusSoaked".

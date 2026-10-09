@@ -778,7 +778,74 @@ local Strings = {
 		RustwoodStalker = "Rustwood Stalker",
 		CisternLeech = "Cistern Leech",
 		Brinehulk = "Brinehulk",
+		Brinewarden = "The Brinewarden",
 	} :: { [string]: string },
+
+	-- Phase 10: Floor Guardians (GuardianService, GuardianController).
+	Guardians = {
+		Names = {
+			Brinewarden = "The Brinewarden",
+		} :: { [string]: string },
+		Subtitles = {
+			Brinewarden = "Keeper of the First Gate",
+		} :: { [string]: string },
+		-- Phase cards, per Guardian and phase number.
+		Phases = {
+			Brinewarden = {
+				"The Warden's Vigil",
+				"The Rising Tide",
+				"The Shell Breaks",
+			},
+		} :: { [string]: { string } },
+		PhaseHints = {
+			Brinewarden = {
+				"Strike the seam in its shell, at its back.",
+				"Cast while the tide is high. Strike while it ebbs.",
+				"Its core is exposed. Dodge through the wave.",
+			},
+		} :: { [string]: { string } },
+		Floors = {
+			["1"] = "Lowharbor",
+			["2"] = "Amberveil",
+			["3"] = "Glasswater",
+			["4"] = "Ironroot",
+			["5"] = "The Drowned Court",
+		} :: { [string]: string },
+
+		Prompt = "Challenge the Brinewarden",
+		PromptObject = "The First Gate",
+		Gathering = "The Gate stirs. Climbers at the Gate join you in {seconds}s ({count}/{max})",
+		Joined = "You stand with {count} Climbers before the Gate",
+		ArenaBusy = "The Gate cannot open right now. Try again in a moment.",
+		BelowLevel = "The Brinewarden is level {level}. Prepare well, Climber.",
+		SkipIntro = "Press {key} to skip",
+
+		BossLevel = "Lv {level}",
+		Tide = {
+			Calm = "Calm Water",
+			High = "High Tide",
+			Ebb = "Ebb Tide",
+		} :: { [string]: string },
+		TideHint = {
+			High = "Pressure 5: spells surge",
+			Ebb = "Pressure 1: the shell dries, strike it",
+		} :: { [string]: string },
+		TideTurning = "The tide turns...",
+		Grabbed = "Seized! Allies: strike the Warden to break its grip",
+
+		Victory = "Guardian Felled",
+		VictoryTime = "{time}",
+		VictoryParty = "With {names}",
+		VictorySolo = "Alone",
+		Unlocked = "Floor {floor}: {name} unlocked",
+		FirstClear = "First clear: +{shards} Spire Shards, +{points} skill points",
+		Wipe = "The tide recedes...",
+		WipeHint = "The Brinewarden waits at the First Gate.",
+		BannerServer = "Floor {floor} has been cleared by {names}!",
+		BannerGlobal = "Across the Spire: Floor {floor} cleared by {names}",
+		NextFloorClosed = "The stair beyond the Gate is still sealed to you.",
+		NextFloorPending = "The way to {name} lies open. Its stair will rise soon.",
+	},
 
 	MobUI = {
 		Nameplate = "Lv {level}  {name}",
