@@ -13,7 +13,8 @@
 	- Collision: a spherecast from the character's head to the desired camera
 	  spot pulls the camera in front of walls instead of through them.
 	- Shoulder side (Right/Left setting) springs across smoothly.
-	- FOV widens while sprinting; landings from a real fall dip the camera.
+	- FOV widens while sprinting (more while Surging); landings from a real
+	  fall dip the camera.
 	- Shake(intensity): trauma-based shake, scaled by the Camera Shake
 	  setting and disabled by Reduced Motion.
 	- The character fades out when the camera is pushed very close to it.
@@ -375,9 +376,12 @@ local function step(dt: number)
 	camera.CFrame = CFrame.new(position) * rotation * shake
 	camera.Focus = CFrame.new(newFocus)
 
-	-- FOV: wider while sprinting.
+	-- FOV: wider while sprinting, wider still while Surging.
 	local sprinting = player:GetAttribute(A.Sprinting) == true or CameraController.PredictedSprint
-	local targetFov = if sprinting and not reducedMotion() then C.SprintFieldOfView else C.FieldOfView
+	local surging = sprinting and player:GetAttribute(A.Surging) == true
+	local targetFov = if not sprinting or reducedMotion() then C.FieldOfView
+		elseif surging then Config.Combat.Surge.FieldOfView
+		else C.SprintFieldOfView
 	fov = MathUtil.ExpDecay(fov, targetFov, C.FovSpeed, dt)
 	punch = MathUtil.ExpDecay(punch, 0, C.PunchRecovery, dt)
 	camera.FieldOfView = fov + punch

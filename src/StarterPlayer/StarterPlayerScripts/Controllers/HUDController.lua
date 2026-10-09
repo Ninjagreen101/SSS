@@ -5,7 +5,7 @@
 
 	  [portrait]  Health  ███████████░░  (red, with a pale "recent damage" trail)
 	  [ ring  ]   Current ████████░░     (flowing teal)
-	  [ (lvl) ]   Stamina ██████         (thin gold; flashes red while Winded)
+	  [ (lvl) ]   Stamina ██████         (thin gold; flashes red while Winded, teal while Surging)
 	              ◆ ◆ ◇ ◇ ◇              (Resonance notches)
 
 	- The ring around the portrait is Saturation: teal while filling, gold in
@@ -375,10 +375,14 @@ local function refreshWinded()
 			local t = (math.sin(time * math.pi * 2 / UITheme.HUD.WindedFlashPeriod) + 1) / 2
 			staminaBar:SetColor(base:Lerp(danger, t))
 		end)
-	elseif not winded and stopWindedFlash then
-		stopWindedFlash()
-		stopWindedFlash = nil
-		staminaBar:SetColor(UITheme.Colors.Stamina)
+	elseif not winded then
+		if stopWindedFlash then
+			stopWindedFlash()
+			stopWindedFlash = nil
+		end
+		-- A sprint Surge tints the bar toward Current teal.
+		local surging = player:GetAttribute(A.Surging) == true
+		staminaBar:SetColor(if surging then UITheme.Colors.Stamina:Lerp(UITheme.Colors.Current, 0.7) else UITheme.Colors.Stamina)
 	end
 end
 
@@ -437,6 +441,7 @@ function HUDController.Start()
 		[A.Pressure] = refreshPressure,
 		[A.Level] = refreshLevel,
 		[A.Winded] = refreshWinded,
+		[A.Surging] = refreshWinded,
 	}
 	for name, callback in watchers do
 		player:GetAttributeChangedSignal(name):Connect(callback)

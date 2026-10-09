@@ -34,6 +34,7 @@ local ORDER = {
 	"DeathController",
 	"InteractionController",
 	"VFXController",
+	"SprintVFXController",
 	"CombatFeedbackController",
 	"LockOnController",
 	"CombatController",

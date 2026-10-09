@@ -554,4 +554,31 @@ The design and its Roblox references are in docs/PHASE10_GUARDIAN.md.
      and an empty layer is silent. The place owner picks licensed tracks from the Creator Store.
 162. **No Floor 2 yet.** A first clear sets `Floors.Unlocked["2"]` and shows the unlock card. After each victory a
      toast says the stair to Amberveil "will rise soon". Floor 2 and its teleport arrive in Phase 14.
+
+## Sprint wind and the Surge
+
+163. **Sprint wind is client-drawn for everyone.** Each client builds a wind rig once per nearby
+     character the first time it sprints, then only toggles it: thin Trails at the shoulders and hips
+     (white to Current teal) and air lines blown back from the torso. It is driven by the replicated
+     Sprinting / Surging attributes and the character's real speed. The local player also gets
+     screen speed lines at full speed (this closes decision 39). Effects Quality (and Graphics
+     Quality when not Auto) scales it; Reduced Motion drops the speed lines and halves the air lines.
+164. **Surge: 10 s of unbroken out-of-combat sprint.** The server (VitalsService + the pure
+     `SurgeState`) sets the player attribute `Surging` and fires `SurgeBoom(character)` to players
+     within FeedbackRadius. While Surging the client runs at Surge.Speed 32 (SpeedBonus applies), the
+     FOV goes to 82, and the wind turns longer, stronger and teal. The boom is a pooled ground ring,
+     a vertical wind ring, a ground-tinted dust kick-up and a burst of air lines, plus an FOV punch
+     (+8) and a light shake for the runner. It has no sound yet: no fitting id exists in
+     Config.Assets or Config.Environment.
+165. **Anything combat breaks a Surge and resets the charge to 0.** That covers stopping the sprint,
+     a stop longer than 0.4 s (shorter ones are forgiven, and jumps keep it), Winded, death, any
+     stamina-spending action (swing, heavy, dodge, blocked blow), any CombatState other than Idle,
+     and every combat mark (damage, MarkCombat from blows landed or received, casts and Arts, health
+     drops). The charge only counts while LastCombat is older than Vitals.CombatTimeout (6 s); there
+     is no separate Surge cooldown.
+166. **Out-of-combat sprinting costs half the stamina.** At 6/s and 100 stamina a 10 s charge was
+     barely reachable, so it now costs 3/s out of combat (Surging included) and 6/s in combat.
+167. **Surge speed is legal only while the server says so.** AntiExploitService raises the movement
+     cap to Surge.Speed only while the server-written `Surging` attribute is set, plus 1 s of grace
+     after it ends for latency. The client only ever sends the existing sprint intent.
 ]==]

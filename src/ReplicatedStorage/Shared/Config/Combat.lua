@@ -248,4 +248,42 @@ return TableUtil.DeepFreeze({
 		CombatTimeout = 6, -- seconds after damage before you count as out of combat
 		SprintMinSpeed = 2, -- studs/s: sprint stamina only drains while actually moving
 	},
+
+	-- Surge: sprint without a break for ChargeSeconds while out of combat
+	-- (Vitals.CombatTimeout since the last blow, hit, cast or action) and the
+	-- air breaks with a sonic boom: faster feet until the sprint stops or
+	-- anything combat happens (then the charge starts again from 0).
+	Surge = {
+		ChargeSeconds = 10,
+		Speed = 32, -- studs/s while Surging (Movement.SprintSpeed is 24); SpeedBonus still applies
+		OutOfCombatCostMultiplier = 0.5, -- sprint stamina cost out of combat (Surging included)
+		StopGrace = 0.4, -- standing still shorter than this (turning, a stumble) doesn't break the charge
+		FieldOfView = 82, -- camera FOV while Surging (Camera.SprintFieldOfView is 76)
+		AntiExploitGrace = 1, -- seconds Surge speed stays legal after it ends (latency)
+		BoomFovPunch = 8, -- degrees, the local player's camera on the boom
+		BoomShake = 0.2,
+		-- Client wind visuals (SprintVFXController). Counts and rates are at High
+		-- Effects Quality and scale down with the setting.
+		Wind = {
+			Range = 160, -- studs from the camera: runners further away draw no wind
+			StreakWidth = 0.18, -- each wind streak (Trail) is this tall
+			TrailLifetime = 0.22,
+			SurgeTrailLifetime = 0.4,
+			TrailTransparency = 0.7, -- at the head of a streak (fades to 1 at the tail)
+			SurgeTrailTransparency = 0.4,
+			WispRate = 26, -- air lines per second behind the torso at full sprint
+			SurgeWispRate = 55,
+			WispLifetime = 0.35,
+			WispSpeed = 6, -- studs/s the air lines drift backwards
+			SpeedLines = 18, -- local screen speed lines at full sprint
+			SpeedLineSurgeMultiplier = 1.6,
+			SpeedLineCycle = 0.45, -- seconds for one line to sweep out and fade
+			BoomRadius = 14, -- ground shockwave ring
+			BoomConeRadius = 7, -- the vertical wind ring around the runner
+			BoomDuration = 0.55,
+			BoomDust = 26, -- dust puffs kicked up
+			BoomWisps = 30, -- wind lines blown out
+			BoomPool = 4, -- booms that can play at once (pooled)
+		},
+	},
 })

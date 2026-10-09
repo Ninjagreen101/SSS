@@ -9,6 +9,7 @@
 		Stamina, MaxStamina, Current, MaxCurrent  -- vitals (Health lives on the Humanoid)
 		Saturation (0..100), Resonance (0..5)     -- filled by Phases 5 and 6
 		Sprinting, Winded, SprintLocked           -- movement state
+		Surging                                   -- sprint Surge: faster sprint after 10 s out of combat
 		LastCombat                                -- server time of the last hit taken/dealt
 		RespawnAt                                 -- server time the Respawn button unlocks
 		Level                                     -- shown on HUD badges and nameplates
@@ -73,6 +74,7 @@ local Attributes = {
 	Sprinting = "Sprinting",
 	Winded = "Winded",
 	SprintLocked = "SprintLocked",
+	Surging = "Surging",
 	LastCombat = "LastCombat",
 	RespawnAt = "RespawnAt",
 	Level = "Level",

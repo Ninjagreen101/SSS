@@ -28,6 +28,9 @@
 
 	Sprint animation: while sprinting on the ground, a looping sprint clip
 	plays over Roblox's default run, sped up or slowed to match real speed.
+
+	Surge: while the server says Surging (attribute), sprinting runs at
+	Surge.Speed instead of SprintSpeed. The client never predicts a Surge.
 ]]
 
 local Players = game:GetService("Players")
@@ -189,8 +192,10 @@ local function step()
 	local sprinting = intent and moving and hasStamina and not winded and not locked and not burdened
 
 	local movement = Config.Combat.Movement
+	local surging = player:GetAttribute(A.Surging) == true
 	local speed = if winded
 		then movement.WalkSpeed * Config.Combat.Stamina.WindedWalkSpeedMultiplier
+		elseif sprinting and surging then Config.Combat.Surge.Speed
 		elseif sprinting then movement.SprintSpeed
 		elseif burdened then movement.WalkSpeed * Config.Items.Inventory.OverburdenedWalkMultiplier
 		else movement.WalkSpeed

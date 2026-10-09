@@ -11,6 +11,16 @@
 	- Hitting 0 stamina makes the player Winded for 1 s (slow walk, no dodge),
 	  and sprint stays locked until stamina refills to SprintResumeStamina
 	  (so holding Shift can't stutter between sprint and Winded).
+	- Out of combat (Vitals.CombatTimeout since LastCombat) sprinting costs
+	  Surge.OutOfCombatCostMultiplier of the normal stamina.
+	- Surge (SurgeState): Surge.ChargeSeconds of unbroken out-of-combat
+	  sprinting sets the Surging attribute (faster sprint, applied by the
+	  client and allowed by AntiExploitService only while it is set) and fires
+	  SurgeBoom to everyone nearby. It ends and the charge resets when the
+	  sprint stops, on death, Winded, any stamina-spending action (swing,
+	  heavy, dodge, blocked blow), any CombatState other than Idle (blocking,
+	  staggered), and any combat mark: damage taken, MarkCombat (blows landed
+	  or received, casts, Arts) or a health drop.
 	- Max values come from level + stats through Shared.Data.Formulas and are
 	  recomputed whenever the profile's Level, Stats or equipped gear change (GearService).
 
@@ -31,6 +41,8 @@ local Attributes = require(Shared.Attributes)
 local Net = require(Shared.Net)
 local Signal = require(Shared.Util.Signal)
 local Formulas = require(Shared.Data.Formulas)
+
+local SurgeState = require(script.Parent.SurgeState)
 
 local DataService = require(script.Parent.DataService)
 local GearService = require(script.Parent.GearService)
@@ -53,6 +65,7 @@ type State = {
 	WindedUntil: number,
 	LastSpend: number,
 	LastCombat: number,
+	Surge: SurgeState.State,
 	Shield: number, -- Ward: absorbs damage before health
 	ShieldUntil: number,
 	Sent: { [string]: any },
@@ -65,6 +78,12 @@ local VitalsService = {}
 VitalsService.Damaged = Signal.new() :: Signal.Signal<Player, number>
 
 local states: { [Player]: State } = {}
+
+local SURGE_TUNING: SurgeState.Tuning = {
+	ChargeSeconds = Config.Combat.Surge.ChargeSeconds,
+	StopGrace = Config.Combat.Surge.StopGrace,
+	CombatTimeout = Config.Combat.Vitals.CombatTimeout,
+}
 
 -- (player) -> (regen multiplier, extra Current per second); set by CurrentService.
 type RegenModifier = (Player) -> (number, number)
@@ -95,7 +114,41 @@ local function pushAll(state: State)
 	push(state, A.Winded, now() < state.WindedUntil)
 	push(state, A.SprintLocked, state.SprintLocked)
 	push(state, A.LastCombat, state.LastCombat)
+	push(state, A.Surging, state.Surge.Surging)
 	push(state, A.Shield, math.ceil(state.Shield))
+end
+
+-- Ends a Surge and resets its charge now (the attribute flips at once, not
+-- on the next tick).
+local function breakSurge(state: State)
+	SurgeState.Cancel(state.Surge)
+	push(state, A.Surging, false)
+end
+
+-- Anything that counts as combat: stamps LastCombat and breaks the Surge.
+local function enterCombat(state: State)
+	state.LastCombat = now()
+	push(state, A.LastCombat, state.LastCombat)
+	breakSurge(state)
+end
+
+-- The sonic boom: everyone near the runner draws it (SprintVFXController).
+local function fireSurgeBoom(state: State)
+	local root = state.Root
+	local humanoid = state.Humanoid
+	local character = humanoid and humanoid.Parent
+	if not root or not character then
+		return
+	end
+	local audience: { Player } = {}
+	for _, other in Players:GetPlayers() do
+		local otherCharacter = other.Character
+		local otherRoot = otherCharacter and otherCharacter:FindFirstChild("HumanoidRootPart")
+		if otherRoot and otherRoot:IsA("BasePart") and (otherRoot.Position - root.Position).Magnitude <= Config.Combat.FeedbackRadius then
+			table.insert(audience, other)
+		end
+	end
+	Net.FireList("SurgeBoom", audience, character)
 end
 
 local function getState(player: Player): State?
@@ -141,10 +194,22 @@ local function becomeWinded(state: State)
 	state.WindedUntil = now() + Config.Combat.Stamina.WindedDuration
 	state.Sprinting = false
 	state.SprintLocked = true
+	breakSurge(state)
+end
+
+-- Any action state (swinging, dodging, blocking, staggered) breaks a Surge.
+local function isActing(state: State): boolean
+	local humanoid = state.Humanoid
+	local character = humanoid and humanoid.Parent
+	local combatState = character and character:GetAttribute(A.CombatState)
+	return combatState ~= nil and combatState ~= "Idle"
 end
 
 local function tick(state: State, dt: number)
 	if not isAlive(state) then
+		if state.Surge.Surging then
+			breakSurge(state)
+		end
 		return
 	end
 	local t = now()
@@ -167,13 +232,26 @@ local function tick(state: State, dt: number)
 	state.Sprinting = state.SprintIntent and not winded and not burdened and not state.SprintLocked and state.Stamina > 0
 
 	if state.Sprinting and moving then
-		state.Stamina = math.max(0, state.Stamina - Config.Combat.Stamina.SprintCostPerSecond * dt)
+		local cost = Config.Combat.Stamina.SprintCostPerSecond
+		if not SurgeState.InCombat(SURGE_TUNING, t, state.LastCombat) then
+			cost *= Config.Combat.Surge.OutOfCombatCostMultiplier
+		end
+		state.Stamina = math.max(0, state.Stamina - cost * dt)
 		state.LastSpend = t
 		if state.Stamina <= 0 then
 			becomeWinded(state)
 		end
 	elseif not winded and t - state.LastSpend >= Config.Combat.Stamina.RegenDelay then
 		state.Stamina = math.min(state.MaxStamina, state.Stamina + state.StaminaRegen * dt)
+	end
+
+	-- Surge: after the drain, so running dry this tick ends it.
+	local event = if isActing(state)
+		then SurgeState.Cancel(state.Surge)
+		else SurgeState.Step(state.Surge, SURGE_TUNING, dt, state.Sprinting, moving, t, state.LastCombat)
+	if event == "Started" then
+		push(state, A.Surging, true)
+		fireSurgeBoom(state)
 	end
 
 	local multiplier, extra = 1, 0
@@ -205,6 +283,7 @@ function VitalsService.Bind(player: Player, character: Model)
 	state.Sprinting = false
 	state.SprintLocked = false
 	state.WindedUntil = 0
+	state.Surge = SurgeState.new()
 	state.Shield = 0
 	state.ShieldUntil = 0
 	recompute(state)
@@ -215,8 +294,7 @@ function VitalsService.Bind(player: Player, character: Model)
 			state.Connections,
 			humanoid.HealthChanged:Connect(function(health: number)
 				if health < lastHealth then
-					state.LastCombat = now()
-					push(state, A.LastCombat, state.LastCombat)
+					enterCombat(state)
 				end
 				lastHealth = health
 			end)
@@ -240,16 +318,14 @@ function VitalsService.Damage(player: Player, amount: number): number
 		amount -= absorbed
 		push(state, A.Shield, math.ceil(state.Shield))
 		if amount <= 0 then
-			state.LastCombat = now()
-			push(state, A.LastCombat, state.LastCombat)
+			enterCombat(state)
 			return 0
 		end
 	end
 	local humanoid = state.Humanoid :: Humanoid
 	local applied = math.min(amount, humanoid.Health)
 	humanoid.Health -= applied
-	state.LastCombat = now()
-	push(state, A.LastCombat, state.LastCombat)
+	enterCombat(state)
 	VitalsService.Damaged:Fire(player, applied)
 	return applied
 end
@@ -283,7 +359,8 @@ function VitalsService.Heal(player: Player, amount: number): number
 end
 
 -- Spends stamina for an action. Actions are allowed while any stamina is
--- left (souls-like: the last action can overdraw into Winded).
+-- left (souls-like: the last action can overdraw into Winded). Every caller
+-- is a combat action (swing, heavy, dodge, blocked blow), so it breaks a Surge.
 function VitalsService.SpendStamina(player: Player, amount: number): boolean
 	local state = getState(player)
 	if not state or not isAlive(state) then
@@ -294,6 +371,7 @@ function VitalsService.SpendStamina(player: Player, amount: number): boolean
 	end
 	state.Stamina = math.max(0, state.Stamina - amount)
 	state.LastSpend = now()
+	breakSurge(state)
 	if state.Stamina <= 0 then
 		becomeWinded(state)
 	end
@@ -368,8 +446,7 @@ end
 function VitalsService.MarkCombat(player: Player)
 	local state = getState(player)
 	if state then
-		state.LastCombat = now()
-		push(state, A.LastCombat, state.LastCombat)
+		enterCombat(state)
 	end
 end
 
@@ -381,6 +458,11 @@ end
 function VitalsService.IsSprinting(player: Player): boolean
 	local state = getState(player)
 	return state ~= nil and state.Sprinting
+end
+
+function VitalsService.IsSurging(player: Player): boolean
+	local state = getState(player)
+	return state ~= nil and state.Surge.Surging
 end
 
 function VitalsService.GetStamina(player: Player): number
@@ -414,6 +496,7 @@ local function createState(player: Player)
 		WindedUntil = 0,
 		LastSpend = 0,
 		LastCombat = 0,
+		Surge = SurgeState.new(),
 		Shield = 0,
 		ShieldUntil = 0,
 		Sent = {},
@@ -431,6 +514,7 @@ function VitalsService.Init()
 			if not wantsSprint then
 				state.Sprinting = false
 				push(state, A.Sprinting, false)
+				breakSurge(state)
 			end
 		end
 	end)

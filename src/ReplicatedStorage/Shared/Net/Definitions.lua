@@ -95,6 +95,7 @@ local Definitions: { [string]: RemoteDef } = {
 	MoveStep = toClient(), -- (casterModel, key, stepIndex, data) one step of a move happened (positions for effects)
 	ProgressionResult = toClient(), -- (ok, action, reason, payload) outcome of a progression request, for toasts
 	LevelUp = toClient(), -- (characterModel, level) someone nearby levelled up: draw the pillar of light
+	SurgeBoom = toClient(), -- (characterModel) a nearby runner broke into a Surge: draw the sonic wind boom
 	SpellCooldowns = toClient(), -- ({ [spellId]: serverTimeReady }) cooldowns changed on the server (Arcblade hits, Relay)
 
 	-- Guardians (Phase 10). Payloads per kind: docs/PHASE10_GUARDIAN.md section 3.
