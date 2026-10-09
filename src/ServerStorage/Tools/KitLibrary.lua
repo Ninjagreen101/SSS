@@ -23,6 +23,9 @@
 	    and raycasts hit them, CanTouch off).
 	  * Night lighting: Light channel parts get a warm PointLight and the tag SpireNightLight; Window
 	    parts get the tag SpireWindow (EnvironmentController lights them after dusk).
+	  * Body pieces (Category "Guardian", from SpireKit_Guardians) carry what MobService/Builder needs
+	    as attributes on the template Model: Body, Limb, Role, RigScale, BodyPieces, Shadow and
+	    LightRange / LightBrightness. Their origin is the centre of the R15 part they ride.
 
 	Usage (Command Bar, Edit mode):
 	    local Kit = require(game.ServerStorage.Tools.KitLibrary)
@@ -93,6 +96,13 @@ KitLibrary.Channels = {
 	Crystal = { Material = Enum.Material.Glass, Color = Color3.fromHex("#8FF5EC"), Transparency = 0.1, Shadow = false },
 	Rope = { Material = Enum.Material.Fabric, Color = Color3.fromHex("#8C7853") },
 	Paper = { Material = Enum.Material.SmoothPlastic, Color = Color3.fromHex("#DCD3B8") },
+	-- Floor Guardian bodies (SpireKit_Guardians)
+	Chitin = { Material = Enum.Material.Slate, Color = Color3.fromHex("#3E4A4D") },
+	ChitinDark = { Material = Enum.Material.Slate, Color = Color3.fromHex("#2B3436") },
+	ShellRed = { Material = Enum.Material.Marble, Color = Color3.fromHex("#8A4A36") },
+	ShellRust = { Material = Enum.Material.Pebble, Color = Color3.fromHex("#A4553A") },
+	Kelp = { Material = Enum.Material.Fabric, Color = Color3.fromHex("#34452F") },
+	Sailcloth = { Material = Enum.Material.Fabric, Color = Color3.fromHex("#5E5A4C") },
 } :: { [string]: Channel }
 
 KitLibrary.WarmLight = Color3.fromHex("#FFB45A")
@@ -297,6 +307,20 @@ local function buildTemplate(name: string, info: PieceInfo, calib: Calib, source
 	addLights(model, info)
 	model.WorldPivot = CFrame.identity
 	model:SetAttribute("Category", info.Category)
+	local meta = info.Meta :: { [string]: any }
+	if type(meta.limb) == "string" then
+		model:SetAttribute("Body", meta.body)
+		model:SetAttribute("Limb", meta.limb)
+		model:SetAttribute("Role", meta.role)
+		model:SetAttribute("RigScale", meta.rigScale)
+		model:SetAttribute("BodyPieces", meta.pieces)
+		model:SetAttribute("Shadow", meta.shadow == true)
+		local light = meta.light :: { [string]: number }?
+		if light then
+			model:SetAttribute("LightRange", light.range)
+			model:SetAttribute("LightBrightness", light.brightness)
+		end
+	end
 	return model, nil
 end
 
@@ -326,6 +350,8 @@ function KitLibrary.Prepare(): { built: number, problems: { string } }
 			if math.abs(calib.Scale - 1) > 0.01 then
 				table.insert(problems, `{file}: importer scale {string.format("%.4f", calib.Scale)} corrected`)
 			end
+		elseif (Manifest.Files[file] :: { [string]: number }).optional == 1 then
+			table.insert(problems, `{err :: string} (optional: until then those bodies use their placeholder parts)`)
 		else
 			table.insert(problems, err :: string)
 		end

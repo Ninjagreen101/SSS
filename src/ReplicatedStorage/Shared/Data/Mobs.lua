@@ -89,6 +89,9 @@ export type BodyDef = {
 	Extras: { BodyPart },
 	Creature: boolean?, -- hide the humanoid limbs: the Extras ARE the body (crabs, wisps, leeches)
 	Hover: number?, -- studs added to HipHeight (floating wisps)
+	-- Blender-made body (SpireKit_Guardians pieces with this Body name, MobService/Builder); the
+	-- Extras are the fallback until that kit is imported and prepared.
+	MeshBody: string?,
 }
 
 export type MobDef = {
@@ -111,6 +114,295 @@ export type MobDef = {
 
 local function color(hex: string): Color3
 	return Color3.fromHex(hex)
+end
+
+-- THE BRINEWARDEN'S PLACEHOLDER BODY -------------------------------------------------------------
+-- Used until SpireKit_Guardians is imported (Body.MeshBody, MobService/Builder). Built in each
+-- limb's space at body scale 1: x right, y up, front -z; the boss's left (-x) carries the pincer.
+-- Role names matter to the fight: every "Shell" part falls away in phase 3, "Core" shows then,
+-- "Seam" is the back weak point, "Claw" is the grabbing pincer, "Helm" the head.
+
+local WARDEN = {
+	Chitin = color("#3E4A4D"),
+	ChitinLight = color("#56656A"),
+	ChitinDark = color("#2B3436"),
+	Shell = color("#8A4A36"),
+	Rust = color("#A4553A"),
+	Bone = color("#C9C0A8"),
+	Coral = color("#C4706A"),
+	Glow = color("#3FE0D0"),
+	Brass = color("#A88A4F"),
+	Iron = color("#3D4045"),
+	Cloth = color("#5E5A4C"),
+	Kelp = color("#34452F"),
+	Rope = color("#8C7853"),
+}
+
+local SLATE = Enum.Material.Slate
+local PEBBLE = Enum.Material.Pebble
+local METAL = Enum.Material.Metal
+local NEON = Enum.Material.Neon
+local FABRIC = Enum.Material.Fabric
+local BALL = Enum.PartType.Ball
+local CYLINDER = Enum.PartType.Cylinder
+local WEDGE = Enum.PartType.Wedge
+
+local function rot(x: number, y: number, z: number): CFrame
+	return CFrame.Angles(math.rad(x), math.rad(y), math.rad(z))
+end
+
+local function at(x: number, y: number, z: number): CFrame
+	return CFrame.new(x, y, z)
+end
+
+-- One part.
+local function bp(attach: string, role: string, size: Vector3, offset: CFrame, tint: Color3, material: Enum.Material, shape: Enum.PartType?): BodyPart
+	return { Attach = attach, Role = role, Size = size, Offset = offset, Color = tint, Material = material, Shape = shape }
+end
+
+-- A square bar from a to b (spikes, horns, crab legs, coral).
+local function bar(attach: string, role: string, a: Vector3, b: Vector3, thickness: number, tint: Color3, material: Enum.Material): BodyPart
+	return bp(attach, role, Vector3.new(thickness, thickness, (b - a).Magnitude), CFrame.lookAt((a + b) / 2, b), tint, material)
+end
+
+local function v(x: number, y: number, z: number): Vector3
+	return Vector3.new(x, y, z)
+end
+
+local function size(x: number, y: number, z: number): Vector3
+	return Vector3.new(x, y, z)
+end
+
+local BRINEWARDEN_EXTRAS: { BodyPart } = {}
+
+local function add(list: { BodyPart })
+	for _, item in list do
+		table.insert(BRINEWARDEN_EXTRAS, item)
+	end
+end
+
+-- Helm: a low crab carapace with a crest, angry teal eye slits and eye-stalk horns.
+add({
+	bp("Head", "Helm", size(1.65, 1.0, 1.6), at(0, 0.22, 0.05), WARDEN.Shell, PEBBLE, BALL),
+	bp("Head", "HelmRim", size(0.22, 1.62, 1.62), at(0, -0.05, 0.05) * rot(0, 0, 90), WARDEN.Chitin, SLATE, CYLINDER),
+	bp("Head", "Visor", size(0.95, 0.55, 0.22), at(0, -0.05, -0.62), WARDEN.ChitinDark, SLATE),
+	bp("Head", "Eyes", size(0.32, 0.07, 0.05), at(0.2, 0.07, -0.74) * rot(0, 0, 14), WARDEN.Glow, NEON),
+	bp("Head", "Eyes", size(0.32, 0.07, 0.05), at(-0.2, 0.07, -0.74) * rot(0, 0, -14), WARDEN.Glow, NEON),
+	bp("Head", "Brow", size(1.15, 0.2, 0.32), at(0, 0.27, -0.7), WARDEN.Rust, PEBBLE, WEDGE),
+	bar("Head", "Spike", v(0.1, 0.3, -0.75), v(0.12, 0.33, -1.08), 0.1, WARDEN.Rust, PEBBLE),
+	bar("Head", "Spike", v(-0.1, 0.3, -0.75), v(-0.12, 0.33, -1.08), 0.1, WARDEN.Rust, PEBBLE),
+	bp("Head", "Crest", size(0.1, 0.45, 1.15), at(0, 0.85, 0.12), WARDEN.Rust, PEBBLE, WEDGE),
+	bp("Head", "Helm", size(0.16, 0.55, 0.7), at(0.76, -0.12, -0.12) * rot(0, 0, 8), WARDEN.Shell, PEBBLE),
+	bp("Head", "Helm", size(0.16, 0.55, 0.7), at(-0.76, -0.12, -0.12) * rot(0, 0, -8), WARDEN.Shell, PEBBLE),
+	bar("Head", "Horn", v(0.32, 0.55, -0.4), v(0.5, 1.05, -0.38), 0.16, WARDEN.Rust, PEBBLE),
+	bar("Head", "Horn", v(0.5, 1.05, -0.38), v(0.82, 1.35, -0.15), 0.13, WARDEN.Rust, PEBBLE),
+	bar("Head", "Horn", v(-0.32, 0.55, -0.4), v(-0.5, 1.05, -0.38), 0.16, WARDEN.Rust, PEBBLE),
+	bar("Head", "Horn", v(-0.5, 1.05, -0.38), v(-0.82, 1.35, -0.15), 0.13, WARDEN.Rust, PEBBLE),
+	bp("Head", "Horn", size(0.13, 0.13, 0.13), at(0.84, 1.37, -0.12), WARDEN.Bone, PEBBLE, BALL),
+	bp("Head", "Horn", size(0.13, 0.13, 0.13), at(-0.84, 1.37, -0.12), WARDEN.Bone, PEBBLE, BALL),
+	bar("Head", "Mandible", v(0.14, -0.4, -0.6), v(0.1, -0.75, -0.66), 0.09, WARDEN.ChitinDark, SLATE),
+	bar("Head", "Mandible", v(-0.14, -0.4, -0.6), v(-0.1, -0.75, -0.66), 0.09, WARDEN.ChitinDark, SLATE),
+	bp("Head", "Barnacle", size(0.18, 0.18, 0.18), at(0.5, 0.6, 0.35), WARDEN.Bone, PEBBLE, BALL),
+})
+
+-- Chest: dark body, banded breastplate, the core in its brass socket behind a red shell plate.
+add({
+	bp("UpperTorso", "Body", size(1.9, 1.6, 0.98), at(0, 0, 0), WARDEN.ChitinDark, SLATE),
+	bp("UpperTorso", "Carapace", size(1.95, 0.5, 0.3), at(0, 0.55, -0.48) * rot(-8, 0, 0), WARDEN.Chitin, SLATE),
+	bp("UpperTorso", "Carapace", size(1.9, 0.26, 0.3), at(0, -0.1, -0.5) * rot(12, 0, 0), WARDEN.Chitin, SLATE),
+	bp("UpperTorso", "Carapace", size(1.86, 0.26, 0.3), at(0, -0.35, -0.48) * rot(12, 0, 0), WARDEN.Chitin, SLATE),
+	bp("UpperTorso", "Carapace", size(1.82, 0.26, 0.3), at(0, -0.6, -0.46) * rot(12, 0, 0), WARDEN.Chitin, SLATE),
+	bp("UpperTorso", "Trim", size(1.92, 0.05, 0.32), at(0, -0.22, -0.52), WARDEN.Brass, METAL),
+	bp("UpperTorso", "Trim", size(1.88, 0.05, 0.32), at(0, -0.47, -0.5), WARDEN.Brass, METAL),
+	bp("UpperTorso", "Trim", size(1.84, 0.05, 0.32), at(0, -0.72, -0.48), WARDEN.Brass, METAL),
+	bp("UpperTorso", "Socket", size(0.12, 0.62, 0.62), at(0, 0.25, -0.5) * rot(0, 90, 0), WARDEN.Brass, METAL, CYLINDER),
+	{ Attach = "UpperTorso", Role = "Core", Size = size(0.42, 0.42, 0.42), Offset = at(0, 0.25, -0.56), Color = WARDEN.Glow, Material = NEON, Shape = BALL, Glow = true },
+	bp("UpperTorso", "Shell", size(0.75, 0.85, 0.32), at(0, 0.22, -0.66), WARDEN.Shell, PEBBLE, BALL),
+	bp("UpperTorso", "Shell", size(0.1, 0.7, 0.12), at(0, 0.22, -0.82), WARDEN.Rust, PEBBLE),
+	bp("UpperTorso", "Collar", size(1.5, 0.45, 0.22), at(0, 0.92, 0.48) * rot(25, 0, 0), WARDEN.Chitin, SLATE),
+	bar("UpperTorso", "Spike", v(-0.45, 1.05, 0.55), v(-0.5, 1.35, 0.7), 0.08, WARDEN.Rust, PEBBLE),
+	bar("UpperTorso", "Spike", v(0, 1.08, 0.55), v(0, 1.42, 0.72), 0.08, WARDEN.Rust, PEBBLE),
+	bar("UpperTorso", "Spike", v(0.45, 1.05, 0.55), v(0.5, 1.35, 0.7), 0.08, WARDEN.Rust, PEBBLE),
+})
+
+-- Back: three overlapping red plates a side, the glowing seam between them.
+for _, sx in { -1, 1 } do
+	for k = 0, 2 do
+		add({ bp("UpperTorso", "Shell", size(0.85, 0.52, 0.22), at(sx * 0.48, 0.55 - 0.5 * k, 0.6 + 0.02 * k) * rot(-14, sx * 15, 0), WARDEN.Shell, PEBBLE) })
+	end
+	add({
+		bar("UpperTorso", "Shell", v(sx * 0.82, 0.45, 0.6), v(sx * 1.1, 0.62, 0.8), 0.08, WARDEN.Rust, PEBBLE),
+		bar("UpperTorso", "Shell", v(sx * 0.82, -0.05, 0.62), v(sx * 1.12, 0.05, 0.84), 0.08, WARDEN.Rust, PEBBLE),
+		bp("UpperTorso", "Shell", size(0.16, 0.16, 0.16), at(sx * 0.45, sx * 0.3, 0.76), WARDEN.Bone, PEBBLE, BALL),
+	})
+end
+add({ bp("UpperTorso", "Seam", size(0.1, 1.3, 0.1), at(0, 0.05, 0.64), WARDEN.Glow, NEON) })
+
+-- Hips: brass belt, tassets, a torn sail-cloth tabard and four folded crab legs behind.
+add({
+	bp("LowerTorso", "Belt", size(2.05, 0.32, 1.1), at(0, 0, 0), WARDEN.Brass, METAL),
+	bp("LowerTorso", "Belt", size(0.1, 0.42, 0.42), at(0, 0, -0.58) * rot(0, 90, 0), WARDEN.Brass, METAL, CYLINDER),
+	bp("LowerTorso", "Belt", size(0.14, 0.14, 0.14), at(0, 0, -0.64), WARDEN.Bone, PEBBLE, BALL),
+	bp("LowerTorso", "Tabard", size(0.75, 1.3, 0.06), at(0, -0.8, -0.62) * rot(6, 0, 0), WARDEN.Cloth, FABRIC),
+	bp("LowerTorso", "Tabard", size(0.9, 1.5, 0.06), at(0, -0.9, 0.6) * rot(-6, 0, 0), WARDEN.Cloth, FABRIC),
+	bp("LowerTorso", "Kelp", size(0.12, 1.1, 0.04), at(0.3, -0.7, -0.66) * rot(6, 0, 5), WARDEN.Kelp, FABRIC),
+	bp("LowerTorso", "Kelp", size(0.12, 1.25, 0.04), at(-0.55, -0.8, 0.64) * rot(-6, 0, -4), WARDEN.Kelp, FABRIC),
+})
+for _, sx in { -1, 1 } do
+	add({
+		bp("LowerTorso", "Tasset", size(0.55, 0.6, 0.12), at(sx * 0.72, -0.4, -0.5) * rot(8, 0, 0), WARDEN.Chitin, SLATE),
+		bp("LowerTorso", "Tasset", size(0.55, 0.6, 0.12), at(sx * 0.72, -0.4, 0.5) * rot(-8, 0, 0), WARDEN.Chitin, SLATE),
+		bp("LowerTorso", "Tasset", size(0.12, 0.6, 0.7), at(sx * 1.02, -0.4, 0) * rot(0, 0, sx * 8), WARDEN.Chitin, SLATE),
+	})
+	local legs = {
+		{ v(0.74, 0.11, 0.4), v(1.47, 0.64, 0.81), v(2.06, -0.07, 1.01), v(2.13, -0.75, 0.88) },
+		{ v(0.71, -0.04, 0.5), v(1.38, 0.28, 0.97), v(1.91, -0.45, 1.19), v(1.96, -1.1, 1.06) },
+	}
+	for _, leg in legs do
+		local p = table.create(4, Vector3.zero)
+		for i, point in leg do
+			p[i] = Vector3.new(point.X * sx, point.Y, point.Z)
+		end
+		add({
+			bar("LowerTorso", "Leg", p[1], p[2], 0.15, WARDEN.Shell, PEBBLE),
+			bar("LowerTorso", "Leg", p[2], p[3], 0.13, WARDEN.Shell, PEBBLE),
+			bar("LowerTorso", "Leg", p[3], p[4], 0.1, WARDEN.ChitinDark, SLATE),
+			bp("LowerTorso", "Leg", size(0.17, 0.17, 0.17), CFrame.new(p[2]), WARDEN.Rust, PEBBLE, BALL),
+		})
+	end
+end
+
+-- Shoulders: a huge spined crab shell on the pincer side, a smaller forged one on the sword side.
+add({
+	bp("LeftUpperArm", "Shell", size(1.75, 1.05, 1.65), at(-0.15, 0.62, 0) * rot(0, 0, 22), WARDEN.Shell, PEBBLE, BALL),
+	bp("LeftUpperArm", "Shell", size(0.14, 1.95, 1.95), at(-0.18, 0.4, 0) * rot(0, 0, 112), WARDEN.Chitin, SLATE, CYLINDER),
+	bar("LeftUpperArm", "Shell", v(-0.3, 1.0, 0.05), v(-0.5, 1.6, 0.1), 0.16, WARDEN.Rust, PEBBLE),
+	bar("LeftUpperArm", "Shell", v(-0.65, 0.9, -0.1), v(-1.1, 1.45, -0.15), 0.15, WARDEN.Rust, PEBBLE),
+	bar("LeftUpperArm", "Shell", v(-0.95, 0.75, 0.15), v(-1.5, 1.05, 0.25), 0.14, WARDEN.Rust, PEBBLE),
+	bp("LeftUpperArm", "Shell", size(0.11, 0.11, 0.11), at(-0.5, 1.62, 0.1), WARDEN.Bone, PEBBLE, BALL),
+	bp("LeftUpperArm", "Shell", size(0.11, 0.11, 0.11), at(-1.12, 1.47, -0.15), WARDEN.Bone, PEBBLE, BALL),
+	bp("LeftUpperArm", "Shell", size(0.11, 0.11, 0.11), at(-1.52, 1.06, 0.25), WARDEN.Bone, PEBBLE, BALL),
+	bp("LeftUpperArm", "Shell", size(0.18, 0.18, 0.18), at(-0.2, 1.05, -0.35), WARDEN.Bone, PEBBLE, BALL),
+	bp("LeftUpperArm", "Shell", size(0.15, 0.15, 0.15), at(0.15, 0.97, 0.3), WARDEN.Bone, PEBBLE, BALL),
+	bar("LeftUpperArm", "Shell", v(0.0, 1.0, 0.35), v(0.05, 1.42, 0.5), 0.1, WARDEN.Coral, PEBBLE),
+	bp("RightUpperArm", "Shell", size(1.35, 0.85, 1.3), at(0.12, 0.6, 0) * rot(0, 0, -22), WARDEN.Shell, PEBBLE, BALL),
+	bp("RightUpperArm", "Shell", size(0.12, 1.5, 1.5), at(0.14, 0.42, 0) * rot(0, 0, 68), WARDEN.Shell, PEBBLE, CYLINDER),
+	bp("RightUpperArm", "Shell", size(0.1, 0.12, 1.2), at(0.12, 0.98, 0) * rot(0, 0, -22), WARDEN.Brass, METAL),
+	bar("RightUpperArm", "Shell", v(0.35, 0.95, -0.15), v(0.62, 1.35, -0.2), 0.13, WARDEN.Rust, PEBBLE),
+	bar("RightUpperArm", "Shell", v(0.55, 0.85, 0.2), v(0.92, 1.15, 0.25), 0.12, WARDEN.Rust, PEBBLE),
+})
+for _, side in { "Left", "Right" } do
+	add({
+		bp(`{side}UpperArm`, "Armor", size(1.15, 1.1, 1.1), at(0, -0.05, 0) * rot(0, 0, 90), WARDEN.Chitin, SLATE, CYLINDER),
+		bp(`{side}UpperArm`, "Trim", size(0.1, 1.16, 1.16), at(0, -0.3, 0) * rot(0, 0, 90), WARDEN.Brass, METAL, CYLINDER),
+	})
+end
+
+-- Forearms: a spiny red crab merus on the pincer side, a finned vambrace on the sword side.
+add({
+	bp("LeftLowerArm", "Armor", size(1.3, 1.35, 1.3), at(0, 0, 0), WARDEN.Shell, PEBBLE, BALL),
+	bp("LeftLowerArm", "Armor", size(0.12, 1.3, 1.3), at(0, 0.2, 0) * rot(0, 0, 90), WARDEN.ChitinDark, SLATE, CYLINDER),
+	bar("LeftLowerArm", "Spike", v(0, 0.3, -0.62), v(0, 0.42, -0.88), 0.1, WARDEN.Rust, PEBBLE),
+	bar("LeftLowerArm", "Spike", v(0, -0.1, -0.65), v(0, 0, -0.92), 0.1, WARDEN.Rust, PEBBLE),
+	bar("LeftLowerArm", "Spike", v(-0.62, 0.2, 0), v(-0.9, 0.32, 0.02), 0.1, WARDEN.Rust, PEBBLE),
+	bar("LeftLowerArm", "Spike", v(-0.65, -0.2, 0), v(-0.92, -0.1, 0.05), 0.1, WARDEN.Rust, PEBBLE),
+	bp("LeftLowerArm", "Barnacle", size(0.15, 0.15, 0.15), at(-0.4, -0.3, 0.45), WARDEN.Bone, PEBBLE, BALL),
+	bp("RightLowerArm", "Armor", size(1.05, 1.1, 1.05), at(0, 0, 0), WARDEN.Chitin, SLATE),
+	bp("RightLowerArm", "Trim", size(1.1, 0.08, 1.1), at(0, 0.35, 0), WARDEN.Brass, METAL),
+	bp("RightLowerArm", "Trim", size(1.1, 0.08, 1.1), at(0, -0.45, 0), WARDEN.Brass, METAL),
+	bp("RightLowerArm", "Fin", size(0.1, 0.5, 0.7), at(0.58, 0, 0.1), WARDEN.Rust, PEBBLE, WEDGE),
+	bar("RightLowerArm", "Spike", v(0, 0.35, 0.5), v(0, 0.25, 0.85), 0.12, WARDEN.Rust, PEBBLE),
+})
+
+-- The pincer: a big palm reaching forward and down, two serrated fingers, barnacle crust.
+add({
+	bp("LeftHand", "Claw", size(1.05, 1.45, 2.0), at(0, -0.46, -0.65) * rot(-42, 0, 0), WARDEN.Shell, PEBBLE, BALL),
+	bp("LeftHand", "Trim", size(0.12, 1.15, 1.15), at(0, 0.12, 0) * rot(0, 0, 90), WARDEN.Brass, METAL, CYLINDER),
+	bar("LeftHand", "Pincer", v(0, -1.18, -1.03), v(0, -1.75, -1.7), 0.4, WARDEN.Shell, PEBBLE),
+	bar("LeftHand", "Pincer", v(0, -1.75, -1.7), v(0, -1.85, -2.3), 0.26, WARDEN.ChitinDark, SLATE),
+	bar("LeftHand", "Pincer", v(0, -0.71, -1.46), v(0, -0.85, -2.0), 0.36, WARDEN.Shell, PEBBLE),
+	bar("LeftHand", "Pincer", v(0, -0.85, -2.0), v(0, -1.35, -2.35), 0.24, WARDEN.ChitinDark, SLATE),
+	bp("LeftHand", "Pincer", size(0.3, 0.3, 0.3), at(0, -0.71, -1.42), WARDEN.ChitinDark, SLATE, BALL),
+	bar("LeftHand", "Teeth", v(0, -1.38, -1.3), v(0, -1.22, -1.4), 0.07, WARDEN.Bone, PEBBLE),
+	bar("LeftHand", "Teeth", v(0, -1.6, -1.55), v(0, -1.44, -1.64), 0.07, WARDEN.Bone, PEBBLE),
+	bar("LeftHand", "Teeth", v(0, -0.86, -1.75), v(0, -1.02, -1.7), 0.07, WARDEN.Bone, PEBBLE),
+	bar("LeftHand", "Teeth", v(0, -1.0, -2.05), v(0, -1.16, -2.0), 0.07, WARDEN.Bone, PEBBLE),
+	bar("LeftHand", "Spike", v(0, 0.07, -1.13), v(0, 0.27, -1.31), 0.1, WARDEN.Rust, PEBBLE),
+	bar("LeftHand", "Spike", v(0, -0.25, -1.45), v(0, -0.06, -1.63), 0.1, WARDEN.Rust, PEBBLE),
+	bp("LeftHand", "Barnacle", size(0.16, 0.16, 0.16), at(-0.5, -0.4, -0.55), WARDEN.Bone, PEBBLE, BALL),
+	bp("LeftHand", "Barnacle", size(0.14, 0.14, 0.14), at(-0.45, -0.7, -0.9), WARDEN.Bone, PEBBLE, BALL),
+	bp("LeftHand", "Barnacle", size(0.15, 0.15, 0.15), at(-0.5, -0.2, -0.3), WARDEN.Bone, PEBBLE, BALL),
+})
+
+-- Sword hand: an iron gauntlet round the two-handed coral greatsword (blade along -z like every R15
+-- weapon, edge down; the grip runs through the hand a little below its centre).
+add({
+	bp("RightHand", "Gauntlet", size(1.05, 0.62, 1.1), at(0, 0.02, 0), WARDEN.Iron, METAL),
+	bp("RightHand", "Gauntlet", size(0.2, 0.45, 1.0), at(0.5, 0.05, 0), WARDEN.Chitin, SLATE),
+	bar("RightHand", "Spike", v(0.6, 0.15, -0.25), v(0.82, 0.2, -0.25), 0.08, WARDEN.Rust, PEBBLE),
+	bar("RightHand", "Spike", v(0.6, 0.15, 0.2), v(0.82, 0.2, 0.2), 0.08, WARDEN.Rust, PEBBLE),
+	-- a two-handed grip and a heavy bone pommel behind the hand
+	bp("RightHand", "Grip", size(1.45, 0.24, 0.24), at(0, -0.095, 0.4) * rot(0, 90, 0), WARDEN.Rope, FABRIC, CYLINDER),
+	bp("RightHand", "Pommel", size(0.48, 0.44, 0.48), at(0, -0.095, 1.2), WARDEN.Bone, PEBBLE, BALL),
+	bp("RightHand", "Pommel", size(0.5, 0.12, 0.12), at(0, -0.095, 1.0) * rot(0, 90, 0), WARDEN.Brass, METAL, CYLINDER),
+	bp("RightHand", "Pommel", size(0.16, 0.16, 0.16), at(0, -0.095, 1.44), WARDEN.Glow, NEON, BALL),
+	-- heavy brass and bone crossguard, quillons curling forward
+	bp("RightHand", "Guard", size(0.42, 0.78, 0.32), at(0, -0.095, -0.59), WARDEN.Brass, METAL),
+	bp("RightHand", "Guard", size(0.3, 0.98, 0.24), at(0, -0.095, -0.8), WARDEN.Bone, PEBBLE),
+	bar("RightHand", "Guard", v(0, 0.25, -0.59), v(0.01, 0.9, -0.75), 0.15, WARDEN.Brass, METAL),
+	bar("RightHand", "Guard", v(0.01, 0.9, -0.75), v(0.02, 0.88, -1.2), 0.11, WARDEN.Brass, METAL),
+	bar("RightHand", "Guard", v(0, -0.44, -0.59), v(-0.01, -1.09, -0.75), 0.15, WARDEN.Brass, METAL),
+	bar("RightHand", "Guard", v(-0.01, -1.09, -0.75), v(-0.02, -1.07, -1.2), 0.11, WARDEN.Brass, METAL),
+	-- the blade: about 4.7 long (16 studs on the Warden), 0.85 wide (2.9 studs) at the base, edge down
+	bp("RightHand", "Blade", size(0.2, 0.85, 1.6), at(0, -0.095, -1.7), WARDEN.Coral, PEBBLE),
+	bp("RightHand", "Blade", size(0.19, 0.78, 1.5), at(0, -0.095, -3.2), WARDEN.Coral, PEBBLE),
+	bp("RightHand", "Blade", size(0.18, 0.62, 1.0), at(0, -0.095, -4.4), WARDEN.Coral, PEBBLE),
+	bp("RightHand", "Blade", size(0.17, 0.5, 0.7), at(0, -0.095, -5.25), WARDEN.Coral, PEBBLE, WEDGE),
+	bp("RightHand", "Blade", size(0.14, 0.2, 0.35), at(0, 0.36, -2.4), WARDEN.Coral, PEBBLE, WEDGE),
+	bp("RightHand", "Spine", size(0.28, 0.16, 3.9), at(0, -0.095, -2.75), WARDEN.Bone, PEBBLE),
+	bp("RightHand", "Vein", size(0.3, 0.05, 3.6), at(0, -0.095, -2.8), WARDEN.Glow, NEON),
+	bp("RightHand", "Vein", size(0.22, 0.04, 0.5), at(0, 0.12, -1.6) * rot(35, 0, 0), WARDEN.Glow, NEON),
+	bp("RightHand", "Vein", size(0.22, 0.04, 0.5), at(0, -0.3, -2.9) * rot(-35, 0, 0), WARDEN.Glow, NEON),
+	bp("RightHand", "Vein", size(0.21, 0.04, 0.45), at(0, 0.1, -3.9) * rot(35, 0, 0), WARDEN.Glow, NEON),
+	bp("RightHand", "Edge", size(0.21, 0.07, 4.6), at(0, -0.53, -2.95), WARDEN.Bone, PEBBLE),
+	-- coral branches and barnacle clusters grown along the blade
+	bar("RightHand", "Coral", v(0, 0.3, -1.3), v(0.03, 0.62, -1.5), 0.12, WARDEN.Coral, PEBBLE),
+	bar("RightHand", "Coral", v(0.03, 0.62, -1.5), v(0.05, 0.72, -1.78), 0.09, WARDEN.Coral, PEBBLE),
+	bar("RightHand", "Coral", v(0.03, 0.55, -1.45), v(0.12, 0.82, -1.38), 0.07, WARDEN.Coral, PEBBLE),
+	bar("RightHand", "Coral", v(0, -0.5, -2.1), v(-0.03, -0.82, -2.35), 0.11, WARDEN.Coral, PEBBLE),
+	bar("RightHand", "Coral", v(-0.03, -0.82, -2.35), v(-0.05, -0.9, -2.62), 0.08, WARDEN.Coral, PEBBLE),
+	bar("RightHand", "Coral", v(0, 0.25, -3.4), v(0.02, 0.52, -3.65), 0.1, WARDEN.Coral, PEBBLE),
+	bar("RightHand", "Coral", v(0.08, 0.0, -2.0), v(0.3, 0.12, -2.15), 0.08, WARDEN.Coral, PEBBLE),
+	bar("RightHand", "Coral", v(-0.08, -0.2, -3.0), v(-0.3, -0.12, -3.2), 0.08, WARDEN.Coral, PEBBLE),
+	bp("RightHand", "Barnacle", size(0.14, 0.14, 0.14), at(0.11, 0.15, -1.2), WARDEN.Bone, PEBBLE, BALL),
+	bp("RightHand", "Barnacle", size(0.12, 0.12, 0.12), at(0.11, 0.22, -1.38), WARDEN.Bone, PEBBLE, BALL),
+	bp("RightHand", "Barnacle", size(0.13, 0.13, 0.13), at(-0.11, -0.3, -2.5), WARDEN.Bone, PEBBLE, BALL),
+	bp("RightHand", "Barnacle", size(0.11, 0.11, 0.11), at(-0.11, -0.18, -2.66), WARDEN.Bone, PEBBLE, BALL),
+	bp("RightHand", "Barnacle", size(0.12, 0.12, 0.12), at(0.1, 0.05, -3.7), WARDEN.Bone, PEBBLE, BALL),
+})
+
+-- Legs: dark cuisses, red knee shells with forward spikes, spined greaves, clawed sabatons.
+for _, sx in { -1, 1 } do
+	local side = if sx < 0 then "Left" else "Right"
+	add({
+		bp(`{side}UpperLeg`, "Armor", size(1.0, 1.3, 1.0), at(0, 0, 0), WARDEN.ChitinDark, SLATE),
+		bp(`{side}UpperLeg`, "Armor", size(0.9, 0.95, 0.16), at(0, 0.12, -0.52) * rot(-6, 0, 0), WARDEN.Chitin, SLATE),
+		bp(`{side}UpperLeg`, "Armor", size(0.14, 0.85, 0.8), at(sx * 0.55, 0.15, 0), WARDEN.Chitin, SLATE),
+		bp(`{side}UpperLeg`, "Knee", size(0.65, 0.55, 0.45), at(0, -0.5, -0.48), WARDEN.Shell, PEBBLE, BALL),
+		bar(`{side}UpperLeg`, "Spike", v(0, -0.48, -0.66), v(0, -0.35, -0.98), 0.12, WARDEN.Rust, PEBBLE),
+		bp(`{side}LowerLeg`, "Armor", size(0.95, 1.25, 0.95), at(0, 0, 0), WARDEN.ChitinDark, SLATE),
+		bp(`{side}LowerLeg`, "Armor", size(0.88, 1.05, 0.15), at(0, 0.05, -0.5) * rot(8, 0, 0), WARDEN.Chitin, SLATE),
+		bp(`{side}LowerLeg`, "Armor", size(0.9, 0.3, 0.17), at(0, 0.05, -0.52) * rot(8, 0, 0), WARDEN.Shell, PEBBLE),
+		bar(`{side}LowerLeg`, "Spike", v(0, 0.35, -0.58), v(0, 0.5, -0.82), 0.1, WARDEN.Rust, PEBBLE),
+		bar(`{side}LowerLeg`, "Spike", v(0, -0.1, -0.6), v(0, 0.03, -0.85), 0.1, WARDEN.Rust, PEBBLE),
+		bar(`{side}LowerLeg`, "Spike", v(0, -0.05, 0.45), v(0, -0.25, 0.95), 0.14, WARDEN.Rust, PEBBLE),
+		bp(`{side}Foot`, "Foot", size(1.0, 0.32, 1.3), at(0, 0, -0.18), WARDEN.ChitinDark, SLATE),
+		bp(`{side}Foot`, "Foot", size(0.95, 0.25, 0.5), at(0, 0.2, -0.45), WARDEN.Chitin, SLATE, WEDGE),
+		bar(`{side}Foot`, "Talon", v(-0.3, -0.05, -0.8), v(-0.4, -0.12, -1.25), 0.12, WARDEN.Bone, PEBBLE),
+		bar(`{side}Foot`, "Talon", v(0, -0.05, -0.8), v(0, -0.12, -1.3), 0.12, WARDEN.Bone, PEBBLE),
+		bar(`{side}Foot`, "Talon", v(0.3, -0.05, -0.8), v(0.4, -0.12, -1.25), 0.12, WARDEN.Bone, PEBBLE),
+		bar(`{side}Foot`, "Spike", v(0, 0, 0.45), v(0, -0.05, 0.75), 0.1, WARDEN.Bone, PEBBLE),
+	})
 end
 
 local NPC_STUN = 0.3
@@ -665,8 +957,9 @@ local Mobs: { [string]: MobDef } = {
 	-- The Brinewarden, Keeper of the First Gate: a towering armoured crab-knight (about 20 studs)
 	-- with a coral greatsword. Body only: GuardianService spawns it scripted and runs the whole
 	-- fight from Shared.Data.Guardians (health, posture, moves, weak points, rewards), so Moves is
-	-- empty and Rewards pay nothing here. Role names matter: "Shell" plates fall away in phase 3,
-	-- revealing the "Core" (hidden until then); "Seam" is the soft back; "RightClaw" grabs.
+	-- empty and Rewards pay nothing here. Its body is the Blender model (MeshBody) once
+	-- SpireKit_Guardians is imported, else the placeholder parts above; both keep the role names
+	-- the fight uses ("Shell", "Core", "Seam", "Claw", "Helm").
 	Brinewarden = {
 		Level = 12,
 		MaxHealth = 7500, -- nominal; the fight scales it by party size
@@ -682,69 +975,8 @@ local Mobs: { [string]: MobDef } = {
 			Arms = color("#1F2A2C"),
 			Legs = color("#1F2A2C"),
 			Creature = true,
-			Extras = {
-				-- Chest: dark inner body under a barnacled carapace; the breastplate hides the core.
-				{ Attach = "UpperTorso", Role = "Body", Size = Vector3.new(1.9, 1.5, 0.95), Offset = CFrame.new(0, 0, 0), Color = color("#1F2A2C"), Material = Enum.Material.Slate },
-				{ Attach = "UpperTorso", Role = "Carapace", Size = Vector3.new(2.5, 2.1, 1.0), Offset = CFrame.new(0, 0.2, 0.55), Color = color("#323B3D"), Material = Enum.Material.Pebble },
-				{ Attach = "UpperTorso", Role = "Shell", Size = Vector3.new(2.3, 1.6, 0.35), Offset = CFrame.new(0, 0.05, -0.62), Color = color("#2E3A3D"), Material = Enum.Material.Slate },
-				{ Attach = "UpperTorso", Role = "Shell", Size = Vector3.new(1.5, 0.9, 1.5), Offset = CFrame.new(-1.3, 0.7, 0), Color = color("#3E4A4D"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
-				{ Attach = "UpperTorso", Role = "Shell", Size = Vector3.new(1.5, 0.9, 1.5), Offset = CFrame.new(1.3, 0.7, 0), Color = color("#3E4A4D"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
-				{ Attach = "UpperTorso", Role = "Shell", Size = Vector3.new(2.0, 0.8, 0.4), Offset = CFrame.new(0, 0.75, 0.95) * CFrame.Angles(math.rad(-20), 0, 0), Color = color("#3E4A4D"), Material = Enum.Material.Slate },
-				{ Attach = "UpperTorso", Role = "Seam", Size = Vector3.new(0.4, 1.4, 0.12), Offset = CFrame.new(0, 0.05, 1.08), Color = color("#C4706A"), Material = Enum.Material.SmoothPlastic },
-				{ Attach = "UpperTorso", Role = "Core", Size = Vector3.new(0.7, 0.7, 0.7), Offset = CFrame.new(0, 0.1, -0.42), Color = color("#3FE0D0"), Material = Enum.Material.Neon, Shape = Enum.PartType.Ball, Glow = true },
-				{ Attach = "UpperTorso", Role = "Barnacle", Size = Vector3.new(0.5, 0.5, 0.5), Offset = CFrame.new(-0.8, 0.9, 0.9), Color = color("#C9C0A8"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
-				{ Attach = "UpperTorso", Role = "Barnacle", Size = Vector3.new(0.4, 0.4, 0.4), Offset = CFrame.new(0.7, 0.55, 1.05), Color = color("#BDB49B"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
-				{ Attach = "UpperTorso", Role = "Barnacle", Size = Vector3.new(0.45, 0.45, 0.45), Offset = CFrame.new(0.25, -0.45, 1.05), Color = color("#C9C0A8"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
-				{ Attach = "UpperTorso", Role = "Barnacle", Size = Vector3.new(0.35, 0.35, 0.35), Offset = CFrame.new(-0.9, -0.3, 0.85), Color = color("#BDB49B"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
-				{ Attach = "UpperTorso", Role = "Spike", Size = Vector3.new(0.25, 0.9, 0.25), Offset = CFrame.new(-1.25, 1.25, 0.2) * CFrame.Angles(0, 0, math.rad(25)), Color = color("#8A4A36"), Material = Enum.Material.Pebble },
-				{ Attach = "UpperTorso", Role = "Spike", Size = Vector3.new(0.25, 0.9, 0.25), Offset = CFrame.new(1.25, 1.25, 0.2) * CFrame.Angles(0, 0, math.rad(-25)), Color = color("#8A4A36"), Material = Enum.Material.Pebble },
-				-- Hips: tassets and four splayed crab legs.
-				{ Attach = "LowerTorso", Role = "Body", Size = Vector3.new(1.7, 0.6, 0.9), Offset = CFrame.new(0, 0, 0), Color = color("#1F2A2C"), Material = Enum.Material.Slate },
-				{ Attach = "LowerTorso", Role = "Shell", Size = Vector3.new(2.1, 0.9, 0.3), Offset = CFrame.new(0, -0.35, -0.55) * CFrame.Angles(math.rad(8), 0, 0), Color = color("#2E3A3D"), Material = Enum.Material.Slate },
-				{ Attach = "LowerTorso", Role = "Plate", Size = Vector3.new(2.1, 0.9, 0.3), Offset = CFrame.new(0, -0.35, 0.55) * CFrame.Angles(math.rad(-8), 0, 0), Color = color("#2E3A3D"), Material = Enum.Material.Slate },
-				{ Attach = "LowerTorso", Role = "Leg", Size = Vector3.new(2.4, 0.35, 0.35), Offset = CFrame.new(-1.5, 0, -0.25) * CFrame.Angles(0, math.rad(15), math.rad(-20)), Color = color("#7A3E2C"), Material = Enum.Material.SmoothPlastic },
-				{ Attach = "LowerTorso", Role = "Leg", Size = Vector3.new(2.4, 0.35, 0.35), Offset = CFrame.new(1.5, 0, -0.25) * CFrame.Angles(0, math.rad(-15), math.rad(20)), Color = color("#7A3E2C"), Material = Enum.Material.SmoothPlastic },
-				{ Attach = "LowerTorso", Role = "Leg", Size = Vector3.new(2.4, 0.35, 0.35), Offset = CFrame.new(-1.5, 0, 0.35) * CFrame.Angles(0, math.rad(-20), math.rad(-25)), Color = color("#7A3E2C"), Material = Enum.Material.SmoothPlastic },
-				{ Attach = "LowerTorso", Role = "Leg", Size = Vector3.new(2.4, 0.35, 0.35), Offset = CFrame.new(1.5, 0, 0.35) * CFrame.Angles(0, math.rad(20), math.rad(25)), Color = color("#7A3E2C"), Material = Enum.Material.SmoothPlastic },
-				-- Crested helm: teal eye slits, a coral crest and swept-back feelers.
-				{ Attach = "Head", Role = "Helm", Size = Vector3.new(1.45, 1.45, 1.5), Offset = CFrame.new(0, 0.05, 0.02), Color = color("#2E3A3D"), Material = Enum.Material.Metal },
-				{ Attach = "Head", Role = "Visor", Size = Vector3.new(1.2, 0.5, 0.15), Offset = CFrame.new(0, -0.15, -0.75), Color = color("#1F2A2C"), Material = Enum.Material.Metal },
-				{ Attach = "Head", Role = "Eyes", Size = Vector3.new(0.38, 0.09, 0.06), Offset = CFrame.new(-0.28, 0.1, -0.79), Color = color("#3FE0D0"), Material = Enum.Material.Neon },
-				{ Attach = "Head", Role = "Eyes", Size = Vector3.new(0.38, 0.09, 0.06), Offset = CFrame.new(0.28, 0.1, -0.79), Color = color("#3FE0D0"), Material = Enum.Material.Neon },
-				{ Attach = "Head", Role = "Crest", Size = Vector3.new(0.22, 0.85, 1.7), Offset = CFrame.new(0, 0.95, 0.1), Color = color("#C4706A"), Material = Enum.Material.Pebble },
-				{ Attach = "Head", Role = "Crest", Size = Vector3.new(0.18, 0.55, 0.5), Offset = CFrame.new(0, 1.25, -0.45) * CFrame.Angles(math.rad(25), 0, 0), Color = color("#C4706A"), Material = Enum.Material.Pebble },
-				{ Attach = "Head", Role = "Feeler", Size = Vector3.new(0.14, 0.14, 1.4), Offset = CFrame.new(-0.5, 0.6, 0.6) * CFrame.Angles(math.rad(30), 0, 0), Color = color("#8A4A36"), Material = Enum.Material.SmoothPlastic },
-				{ Attach = "Head", Role = "Feeler", Size = Vector3.new(0.14, 0.14, 1.4), Offset = CFrame.new(0.5, 0.6, 0.6) * CFrame.Angles(math.rad(30), 0, 0), Color = color("#8A4A36"), Material = Enum.Material.SmoothPlastic },
-				{ Attach = "Head", Role = "Barnacle", Size = Vector3.new(0.3, 0.3, 0.3), Offset = CFrame.new(0.55, 0.5, 0.3), Color = color("#C9C0A8"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
-				-- Arms: shell plates down to two great claws (the left one larger, crab-fashion).
-				{ Attach = "RightUpperArm", Role = "Plate", Size = Vector3.new(1.3, 1.4, 1.3), Offset = CFrame.new(0, 0.1, 0), Color = color("#3E4A4D"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
-				{ Attach = "LeftUpperArm", Role = "Plate", Size = Vector3.new(1.3, 1.4, 1.3), Offset = CFrame.new(0, 0.1, 0), Color = color("#3E4A4D"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
-				{ Attach = "RightLowerArm", Role = "Plate", Size = Vector3.new(1.15, 1.2, 1.15), Offset = CFrame.new(0, 0, 0), Color = color("#2E3A3D"), Material = Enum.Material.Slate },
-				{ Attach = "LeftLowerArm", Role = "Plate", Size = Vector3.new(1.15, 1.2, 1.15), Offset = CFrame.new(0, 0, 0), Color = color("#2E3A3D"), Material = Enum.Material.Slate },
-				{ Attach = "RightLowerArm", Role = "Barnacle", Size = Vector3.new(0.35, 0.35, 0.35), Offset = CFrame.new(0.45, 0.2, 0.4), Color = color("#BDB49B"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
-				{ Attach = "RightHand", Role = "RightClaw", Size = Vector3.new(1.5, 1.1, 2.4), Offset = CFrame.new(0, -0.5, -0.8), Color = color("#8A4A36"), Material = Enum.Material.Pebble },
-				{ Attach = "RightHand", Role = "Pincer", Size = Vector3.new(0.6, 0.45, 1.5), Offset = CFrame.new(0.25, -1.05, -1.4), Color = color("#A4553A"), Material = Enum.Material.Pebble },
-				{ Attach = "LeftHand", Role = "Claw", Size = Vector3.new(1.8, 1.3, 2.9), Offset = CFrame.new(0, -0.55, -1.0), Color = color("#8A4A36"), Material = Enum.Material.Pebble },
-				{ Attach = "LeftHand", Role = "Pincer", Size = Vector3.new(0.7, 0.5, 1.8), Offset = CFrame.new(0.3, -1.2, -1.6), Color = color("#A4553A"), Material = Enum.Material.Pebble },
-				{ Attach = "LeftHand", Role = "Barnacle", Size = Vector3.new(0.4, 0.4, 0.4), Offset = CFrame.new(-0.6, 0, -0.6), Color = color("#C9C0A8"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
-				-- The coral greatsword, gripped in the right claw: bone guard and edges.
-				{ Attach = "RightHand", Role = "Grip", Size = Vector3.new(0.3, 0.3, 1.4), Offset = CFrame.new(-0.2, -0.45, -1.2), Color = color("#3B2A1E"), Material = Enum.Material.Wood },
-				{ Attach = "RightHand", Role = "Guard", Size = Vector3.new(2.0, 0.35, 0.4), Offset = CFrame.new(-0.2, -0.45, -2.2), Color = color("#C9C0A8"), Material = Enum.Material.Pebble },
-				{ Attach = "RightHand", Role = "Blade", Size = Vector3.new(0.75, 0.2, 6.6), Offset = CFrame.new(-0.2, -0.45, -5.7), Color = color("#C4706A"), Material = Enum.Material.Pebble },
-				{ Attach = "RightHand", Role = "Edge", Size = Vector3.new(0.12, 0.22, 6.4), Offset = CFrame.new(0.22, -0.45, -5.6), Color = color("#C9C0A8"), Material = Enum.Material.SmoothPlastic },
-				{ Attach = "RightHand", Role = "Edge", Size = Vector3.new(0.12, 0.22, 6.4), Offset = CFrame.new(-0.62, -0.45, -5.6), Color = color("#C9C0A8"), Material = Enum.Material.SmoothPlastic },
-				{ Attach = "RightHand", Role = "Coral", Size = Vector3.new(0.45, 0.45, 0.45), Offset = CFrame.new(0.15, -0.3, -3.6), Color = color("#C4706A"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
-				{ Attach = "RightHand", Role = "Coral", Size = Vector3.new(0.4, 0.4, 0.4), Offset = CFrame.new(-0.55, -0.3, -5.1), Color = color("#C4706A"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
-				{ Attach = "RightHand", Role = "Coral", Size = Vector3.new(0.35, 0.35, 0.35), Offset = CFrame.new(0.1, -0.3, -7.0), Color = color("#C9C0A8"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
-				-- Legs: greaves and sabatons.
-				{ Attach = "LeftUpperLeg", Role = "Plate", Size = Vector3.new(1.25, 1.35, 1.25), Offset = CFrame.new(0, 0, 0), Color = color("#323B3D"), Material = Enum.Material.Slate },
-				{ Attach = "RightUpperLeg", Role = "Plate", Size = Vector3.new(1.25, 1.35, 1.25), Offset = CFrame.new(0, 0, 0), Color = color("#323B3D"), Material = Enum.Material.Slate },
-				{ Attach = "LeftLowerLeg", Role = "Plate", Size = Vector3.new(1.15, 1.35, 1.25), Offset = CFrame.new(0, 0, 0), Color = color("#3E4A4D"), Material = Enum.Material.Slate },
-				{ Attach = "RightLowerLeg", Role = "Plate", Size = Vector3.new(1.15, 1.35, 1.25), Offset = CFrame.new(0, 0, 0), Color = color("#3E4A4D"), Material = Enum.Material.Slate },
-				{ Attach = "RightLowerLeg", Role = "Barnacle", Size = Vector3.new(0.35, 0.35, 0.35), Offset = CFrame.new(0.5, 0.3, -0.5), Color = color("#C9C0A8"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
-				{ Attach = "LeftFoot", Role = "Foot", Size = Vector3.new(1.2, 0.5, 1.7), Offset = CFrame.new(0, 0.05, -0.25), Color = color("#2E3A3D"), Material = Enum.Material.Slate },
-				{ Attach = "RightFoot", Role = "Foot", Size = Vector3.new(1.2, 0.5, 1.7), Offset = CFrame.new(0, 0.05, -0.25), Color = color("#2E3A3D"), Material = Enum.Material.Slate },
-			},
+			MeshBody = "Brinewarden",
+			Extras = BRINEWARDEN_EXTRAS,
 		},
 		Moves = {},
 	},

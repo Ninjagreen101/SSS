@@ -863,7 +863,7 @@ local function spawnWarden(fight: Fight): boolean
 	local core = bodyPart(model, "Core")
 	local depth = if torso then torso.Size.Z / 2 else 0
 	addLockPoint(fight, "Head", bodyPart(model, "Head"), CFrame.identity, true)
-	addLockPoint(fight, "RightClaw", bodyPart(model, "RightClaw") or bodyPart(model, "RightHand"), CFrame.identity, true)
+	addLockPoint(fight, "Claw", bodyPart(model, "Claw") or bodyPart(model, "LeftHand"), CFrame.identity, true)
 	addLockPoint(fight, "Back", seam or torso, if seam then CFrame.identity else CFrame.new(0, 0, depth), true)
 	addLockPoint(fight, "Core", core or torso, if core then CFrame.identity else CFrame.new(0, 0, -depth), false)
 	setCoreVisible(model, false)

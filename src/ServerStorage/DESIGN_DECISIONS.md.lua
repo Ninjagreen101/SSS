@@ -581,4 +581,13 @@ The design and its Roblox references are in docs/PHASE10_GUARDIAN.md.
 167. **Surge speed is legal only while the server says so.** AntiExploitService raises the movement
      cap to Surge.Speed only while the server-written `Surging` attribute is set, plus 1 s of grace
      after it ends for latency. The client only ever sends the existing sprint intent.
+168. **The Brinewarden is a Blender mesh body on the R15 rig.** The model (tools/blender/guardian,
+     assets/guardian/SpireKit_Guardians.fbx) is 22 rigid pieces, about 31k triangles; no mesh is over
+     4k. Each piece has its origin at its R15 part's centre, so the server welds it to that limb and
+     the existing animations drive it. It imports the same way as the kit: calibration cubes, one
+     mesh per material channel, KitLibrary.Prepare(). The Chitin, ChitinDark, ShellRed, ShellRust,
+     Kelp and Sailcloth channels were added. Until the FBX is imported, Builder uses a 179-part
+     fallback body with the same piece names (Shell, Core, Seam, Claw, Helm), so the fight code works
+     either way. The grab lock point "Claw" sits on the left pincer. The greatsword's edge stays
+     vertical, because it reads better at 20 studs than the flat player blades.
 ]==]

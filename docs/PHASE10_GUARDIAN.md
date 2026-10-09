@@ -101,7 +101,7 @@ Requirements met:
   phases 1–2, the front core in phase 3.
 - The Warden doesn't flinch from ordinary hits (it is unflinching); only posture breaks interrupt it.
 
-**Lock points.** Lock-on can cycle between the Head, the Right Claw and the Back seam, or the Core in
+**Lock points.** Lock-on can cycle between the Head, the Claw (the left pincer) and the Back seam, or the Core in
 phase 3. These are `LockPoint` attachments on the body.
 
 **Victory.**

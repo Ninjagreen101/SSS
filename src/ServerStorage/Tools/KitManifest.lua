@@ -239,4 +239,14 @@ local DATA = [==[
 
 local Manifest: Manifest = HttpService:JSONDecode(DATA)
 
+-- Floor Guardian bodies come from their own generator (tools/blender/guardian) and FBX
+-- (SpireKit_Guardians); merge their file and pieces in.
+local Guardians = require(script.Parent.KitManifestGuardians) :: { Files: { [string]: { [string]: number } }, Pieces: { [string]: PieceInfo } }
+for file, info in Guardians.Files do
+	Manifest.Files[file] = info
+end
+for name, info in Guardians.Pieces do
+	Manifest.Pieces[name] = info
+end
+
 return Manifest
