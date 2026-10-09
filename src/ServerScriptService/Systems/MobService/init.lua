@@ -26,6 +26,13 @@
 
 	Mobs are server-owned physics (SetNetworkOwner(nil)), so no client can
 	move them, and fight through CombatService like every other target.
+
+	Scripted mobs (Spawn options, Types.SpawnOptions)
+	  A Floor Guardian is spawned Scripted: Brain never thinks for it, its
+	  death pays no kill rewards and never respawns (OnDied tells its owner,
+	  which removes the body with Despawn). Threat and Contributors are still
+	  kept from hits. Any mob can carry AllowedTargets (a Guardian's adds only
+	  fight its party) and a per-mob WeakPoint / PostureTaken override.
 ]]
 
 local CollectionService = game:GetService("CollectionService")
@@ -109,6 +116,14 @@ end
 
 -- SPAWNING ---------------------------------------------------------------------
 
+-- Tells a mob's owner it died (own thread: an owner's error can't break the death).
+local function notifyDied(mob: Types.Mob)
+	local callback = mob.OnDied
+	if callback then
+		task.spawn(callback, mob)
+	end
+end
+
 local function onDied(mob: Types.Mob)
 	if mob.Dead then
 		return
@@ -123,12 +138,19 @@ local function onDied(mob: Types.Mob)
 	mob.Align.Enabled = false
 	CharacterService.Ragdoll(mob.Model)
 
+	if mob.Scripted then
+		-- Its owner pays out and removes the body (MobService.Despawn) when it's done with it.
+		notifyDied(mob)
+		return
+	end
+
 	-- XP to everyone who helped, then each of them gets personal loot.
 	local position = mob.Root.Position
 	local earned = ProgressionService.KillEligible(mob.Contributors, position)
 	ProgressionService.AwardKill(mob.Def, mob.Elite, earned)
 	local zone = if mob.Spawn then mob.Spawn.Part:GetAttribute(A.Zone) else nil
 	LootService.AwardKill(mob.MobId, mob.Def, mob.Elite, earned, position, if type(zone) == "string" then zone else nil)
+	notifyDied(mob)
 
 	local model = mob.Model
 	task.delay(Config.Mobs.Visual.DissolveDuration + 0.5, function()
@@ -146,7 +168,14 @@ local function onDied(mob: Types.Mob)
 	end
 end
 
-function MobService.Spawn(mobId: string, position: Vector3, elite: boolean, point: Types.SpawnPoint?): Types.Mob?
+function MobService.Spawn(
+	mobId: string,
+	position: Vector3,
+	elite: boolean,
+	point: Types.SpawnPoint?,
+	options: Types.SpawnOptions?
+): Types.Mob?
+	local opts: Types.SpawnOptions = options or {}
 	mobId = Mobs.Resolve(mobId) -- pre-Phase 9 ids (e.g. SaltwornDrifter) become their successors
 	local def = Mobs.Get(mobId)
 	if not def then
@@ -158,15 +187,20 @@ function MobService.Spawn(mobId: string, position: Vector3, elite: boolean, poin
 	local root = model:FindFirstChild("HumanoidRootPart") :: BasePart
 	local scale = def.Body.Scale * (if elite then ELITE.ScaleMultiplier else 1)
 
-	local health = def.MaxHealth * (if elite then ELITE.HealthMultiplier else 1)
+	local health = opts.MaxHealth or def.MaxHealth * (if elite then ELITE.HealthMultiplier else 1)
 	humanoid.MaxHealth = health
 	humanoid.Health = health
 	humanoid.WalkSpeed = def.WalkSpeed
 
 	local ground = groundAt(position)
 	local height = humanoid.HipHeight + root.Size.Y / 2
-	local yaw = random:NextNumber(0, math.pi * 2)
-	model:PivotTo(CFrame.new(ground + Vector3.new(0, height + 0.1, 0)) * CFrame.Angles(0, yaw, 0))
+	local standAt = ground + Vector3.new(0, height + 0.1, 0)
+	local pivot = CFrame.new(standAt) * CFrame.Angles(0, random:NextNumber(0, math.pi * 2), 0)
+	local facing = opts.Facing
+	if facing and Vector3.new(facing.X, 0, facing.Z).Magnitude > 1e-3 then
+		pivot = CFrame.lookAt(standAt, standAt + Vector3.new(facing.X, 0, facing.Z))
+	end
+	model:PivotTo(pivot)
 
 	-- Turning to face things without fighting physics.
 	local attachment = Instance.new("Attachment")
@@ -225,6 +259,11 @@ function MobService.Spawn(mobId: string, position: Vector3, elite: boolean, poin
 		Asleep = false,
 		Nav = Navigator.New(scale),
 		Dead = false,
+		Scripted = opts.Scripted == true,
+		AllowedTargets = opts.AllowedTargets,
+		WeakPoint = nil,
+		PostureTaken = 1,
+		OnDied = opts.OnDied,
 	}
 	mobs[model] = mob
 
@@ -234,7 +273,10 @@ function MobService.Spawn(mobId: string, position: Vector3, elite: boolean, poin
 		model:Destroy()
 		return nil
 	end
-	CombatService.SetMaxPosture(model, def.MaxPosture * (if elite then ELITE.PostureMultiplier else 1))
+	CombatService.SetMaxPosture(model, opts.MaxPosture or def.MaxPosture * (if elite then ELITE.PostureMultiplier else 1))
+	if opts.HitRadius or opts.HitHeight then
+		TargetService.SetHitSize(model, opts.HitRadius or 0, opts.HitHeight or 0)
+	end
 	CollectionService:AddTag(model, Attributes.Tags.Mob)
 	humanoid.Died:Connect(function()
 		onDied(mob)
@@ -245,26 +287,41 @@ function MobService.Spawn(mobId: string, position: Vector3, elite: boolean, poin
 	return mob
 end
 
+-- Removes one mob without rewards or respawn (its body too, if it already died). With `fade`
+-- clients dissolve it first.
+local function despawn(model: Model, fade: boolean)
+	local mob = mobs[model]
+	if not mob then
+		return
+	end
+	mobs[model] = nil
+	if not mob.Dead then
+		mob.Dead = true
+		Brain.CancelMove(mob)
+		Brain.ReleaseSlot(mob)
+		TargetService.Unregister(model)
+		CollectionService:RemoveTag(model, Attributes.Tags.Mob)
+		local point = mob.Spawn
+		if point then
+			point.Alive -= 1
+		end
+	end
+	if fade then
+		model:SetAttribute(A.MobState, "Dead") -- clients dissolve it
+		task.delay(Config.Mobs.Visual.DissolveDuration, function()
+			model:Destroy()
+		end)
+	else
+		model:Destroy()
+	end
+end
+
 -- Removes the living mobs of one spawn point (dawn for night-only points, or the point was
 -- deleted, e.g. a dungeon instance closing). Nobody gets rewards for these.
 local function despawnPoint(point: Types.SpawnPoint, fade: boolean)
 	for model, mob in mobs do
 		if mob.Spawn == point and not mob.Dead then
-			mob.Dead = true
-			Brain.CancelMove(mob)
-			Brain.ReleaseSlot(mob)
-			TargetService.Unregister(model)
-			CollectionService:RemoveTag(model, Attributes.Tags.Mob)
-			point.Alive -= 1
-			mobs[model] = nil
-			if fade then
-				model:SetAttribute(A.MobState, "Dead") -- clients dissolve it
-				task.delay(Config.Mobs.Visual.DissolveDuration, function()
-					model:Destroy()
-				end)
-			else
-				model:Destroy()
-			end
+			despawn(model, fade)
 		end
 	end
 end
@@ -333,25 +390,38 @@ local function onMobHit(attacker: Model, defender: Model, applied: number)
 	end
 end
 
--- Weak points: blows from within WeakPoint.Arc of a mob's back hit harder.
+-- Weak points: blows from within the weak point's Arc of a mob's back (or front, for a
+-- per-mob override on its Front) hit harder. PostureTaken scales every blow's posture.
 local function weakPoint(model: Model, source: Vector3): (number, number)
 	local mob = mobs[model]
-	local spot = mob and mob.Def.WeakPoint
-	if not mob or not spot then
+	if not mob then
 		return 1, 1
 	end
-	local back = -mob.Root.CFrame.LookVector
+	local taken = mob.PostureTaken
+	local arc, damage, posture = 0, 1, 1
+	local side: "Back" | "Front" = "Back"
+	local override = mob.WeakPoint
+	local spot = mob.Def.WeakPoint
+	if override then
+		arc, damage, posture, side = override.Arc, override.Damage, override.Posture, override.Side
+	elseif spot then
+		arc, damage, posture = spot.Arc, spot.Damage, spot.Posture
+	else
+		return 1, taken
+	end
+	local look = mob.Root.CFrame.LookVector
+	local toward = if side == "Front" then look else -look
 	local toSource = source - mob.Root.Position
-	local flatBack = Vector3.new(back.X, 0, back.Z)
+	local flatToward = Vector3.new(toward.X, 0, toward.Z)
 	local flatTo = Vector3.new(toSource.X, 0, toSource.Z)
-	if flatBack.Magnitude < 1e-3 or flatTo.Magnitude < 1e-3 then
-		return 1, 1
+	if flatToward.Magnitude < 1e-3 or flatTo.Magnitude < 1e-3 then
+		return 1, taken
 	end
-	local angle = math.deg(math.acos(math.clamp(flatBack.Unit:Dot(flatTo.Unit), -1, 1)))
-	if angle <= spot.Arc / 2 then
-		return spot.Damage, spot.Posture
+	local angle = math.deg(math.acos(math.clamp(flatToward.Unit:Dot(flatTo.Unit), -1, 1)))
+	if angle <= arc / 2 then
+		return damage, posture * taken
 	end
-	return 1, 1
+	return 1, taken
 end
 
 local function onHitLanded(attacker: Model?, defender: Model, _outcome: string, applied: number, _kind: string)
@@ -375,7 +445,9 @@ local function onHitLanded(attacker: Model?, defender: Model, _outcome: string, 
 	-- Vanguard tree: Threat makes your damage draw more attention.
 	local threat = math.max(1, applied) * SEE.DamageThreat * Config.Mobs.Threat.DamageMultiplier * (1 + GearService.Bonus(player, "Threat"))
 	Brain.AddThreat(mob, player, threat)
-	Brain.Engage(mob, player, list())
+	if not mob.Scripted then
+		Brain.Engage(mob, player, list())
+	end
 end
 
 -- SCHEDULER --------------------------------------------------------------------
@@ -396,7 +468,7 @@ local function schedule()
 	local t = now()
 	local others: { Types.Mob }? = nil
 	for _, mob in mobs do
-		if not mob.Dead and t >= mob.NextThinkAt then
+		if not mob.Dead and not mob.Scripted and t >= mob.NextThinkAt then
 			local distance = nearestPlayerDistance(mob.Root.Position)
 			if distance > AI.SleepRadius then
 				-- Nobody around: stand still and check again in a second.
@@ -443,21 +515,42 @@ function MobService.Taunt(player: Player, center: Vector3, radius: number, durat
 	local taunted = {}
 	local until_ = Workspace:GetServerTimeNow() + duration
 	for model, mob in mobs do
-		if not mob.Dead and mob.State ~= "Return" and (mob.Root.Position - center).Magnitude <= radius then
+		local allowed = mob.AllowedTargets == nil or mob.AllowedTargets[player] == true
+		if not mob.Dead and allowed and mob.State ~= "Return" and (mob.Root.Position - center).Magnitude <= radius then
 			Brain.AddThreat(mob, player, Config.Mobs.Threat.TauntBonus)
 			mob.TauntedBy = player
 			mob.TauntUntil = until_
-			mob.Target = player
-			Brain.Engage(mob, player, nil)
+			if not mob.Scripted then
+				-- (a scripted mob's owner reads TauntedBy / Threat itself)
+				mob.Target = player
+				Brain.Engage(mob, player, nil)
+			end
 			table.insert(taunted, model)
 		end
 	end
 	return taunted
 end
 
+-- Removes a mob without rewards or respawn (a Guardian's adds and body when its fight ends).
+function MobService.Despawn(model: Model, fade: boolean)
+	despawn(model, fade)
+end
+
+-- Makes a (non-scripted) mob turn on `player` at once, e.g. adds summoned mid-fight.
+function MobService.Engage(model: Model, player: Player)
+	local mob = mobs[model]
+	if mob and not mob.Dead and not mob.Scripted then
+		Brain.Engage(mob, player, nil)
+	end
+end
+
 -- Removes every live mob (Studio testing). Spawn points refill after their respawn time.
+-- Scripted mobs (Floor Guardians) belong to their fight and are left alone.
 function MobService.Clear()
 	for model, mob in mobs do
+		if mob.Scripted then
+			continue
+		end
 		if not mob.Dead then
 			mob.Dead = true
 			Brain.CancelMove(mob)

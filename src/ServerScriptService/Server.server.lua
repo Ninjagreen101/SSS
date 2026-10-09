@@ -54,6 +54,7 @@ local ORDER = {
 	"TrainingService",
 	"SecretService",
 	"DungeonService",
+	"GuardianService",
 	"DevService",
 }
 

@@ -659,6 +659,95 @@ local Mobs: { [string]: MobDef } = {
 			},
 		},
 	},
+
+	-- FLOOR 1 GUARDIAN ---------------------------------------------------------------------
+
+	-- The Brinewarden, Keeper of the First Gate: a towering armoured crab-knight (about 20 studs)
+	-- with a coral greatsword. Body only: GuardianService spawns it scripted and runs the whole
+	-- fight from Shared.Data.Guardians (health, posture, moves, weak points, rewards), so Moves is
+	-- empty and Rewards pay nothing here. Role names matter: "Shell" plates fall away in phase 3,
+	-- revealing the "Core" (hidden until then); "Seam" is the soft back; "RightClaw" grabs.
+	Brinewarden = {
+		Level = 12,
+		MaxHealth = 7500, -- nominal; the fight scales it by party size
+		MaxPosture = 900,
+		WalkSpeed = 10,
+		RunSpeed = 17,
+		AggroRadius = 200,
+		Rewards = { XP = 0, GoldMin = 0, GoldMax = 0 },
+		Body = {
+			Scale = 3.4,
+			Skin = color("#1F2A2C"),
+			Torso = color("#1F2A2C"),
+			Arms = color("#1F2A2C"),
+			Legs = color("#1F2A2C"),
+			Creature = true,
+			Extras = {
+				-- Chest: dark inner body under a barnacled carapace; the breastplate hides the core.
+				{ Attach = "UpperTorso", Role = "Body", Size = Vector3.new(1.9, 1.5, 0.95), Offset = CFrame.new(0, 0, 0), Color = color("#1F2A2C"), Material = Enum.Material.Slate },
+				{ Attach = "UpperTorso", Role = "Carapace", Size = Vector3.new(2.5, 2.1, 1.0), Offset = CFrame.new(0, 0.2, 0.55), Color = color("#323B3D"), Material = Enum.Material.Pebble },
+				{ Attach = "UpperTorso", Role = "Shell", Size = Vector3.new(2.3, 1.6, 0.35), Offset = CFrame.new(0, 0.05, -0.62), Color = color("#2E3A3D"), Material = Enum.Material.Slate },
+				{ Attach = "UpperTorso", Role = "Shell", Size = Vector3.new(1.5, 0.9, 1.5), Offset = CFrame.new(-1.3, 0.7, 0), Color = color("#3E4A4D"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
+				{ Attach = "UpperTorso", Role = "Shell", Size = Vector3.new(1.5, 0.9, 1.5), Offset = CFrame.new(1.3, 0.7, 0), Color = color("#3E4A4D"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
+				{ Attach = "UpperTorso", Role = "Shell", Size = Vector3.new(2.0, 0.8, 0.4), Offset = CFrame.new(0, 0.75, 0.95) * CFrame.Angles(math.rad(-20), 0, 0), Color = color("#3E4A4D"), Material = Enum.Material.Slate },
+				{ Attach = "UpperTorso", Role = "Seam", Size = Vector3.new(0.4, 1.4, 0.12), Offset = CFrame.new(0, 0.05, 1.08), Color = color("#C4706A"), Material = Enum.Material.SmoothPlastic },
+				{ Attach = "UpperTorso", Role = "Core", Size = Vector3.new(0.7, 0.7, 0.7), Offset = CFrame.new(0, 0.1, -0.42), Color = color("#3FE0D0"), Material = Enum.Material.Neon, Shape = Enum.PartType.Ball, Glow = true },
+				{ Attach = "UpperTorso", Role = "Barnacle", Size = Vector3.new(0.5, 0.5, 0.5), Offset = CFrame.new(-0.8, 0.9, 0.9), Color = color("#C9C0A8"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
+				{ Attach = "UpperTorso", Role = "Barnacle", Size = Vector3.new(0.4, 0.4, 0.4), Offset = CFrame.new(0.7, 0.55, 1.05), Color = color("#BDB49B"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
+				{ Attach = "UpperTorso", Role = "Barnacle", Size = Vector3.new(0.45, 0.45, 0.45), Offset = CFrame.new(0.25, -0.45, 1.05), Color = color("#C9C0A8"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
+				{ Attach = "UpperTorso", Role = "Barnacle", Size = Vector3.new(0.35, 0.35, 0.35), Offset = CFrame.new(-0.9, -0.3, 0.85), Color = color("#BDB49B"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
+				{ Attach = "UpperTorso", Role = "Spike", Size = Vector3.new(0.25, 0.9, 0.25), Offset = CFrame.new(-1.25, 1.25, 0.2) * CFrame.Angles(0, 0, math.rad(25)), Color = color("#8A4A36"), Material = Enum.Material.Pebble },
+				{ Attach = "UpperTorso", Role = "Spike", Size = Vector3.new(0.25, 0.9, 0.25), Offset = CFrame.new(1.25, 1.25, 0.2) * CFrame.Angles(0, 0, math.rad(-25)), Color = color("#8A4A36"), Material = Enum.Material.Pebble },
+				-- Hips: tassets and four splayed crab legs.
+				{ Attach = "LowerTorso", Role = "Body", Size = Vector3.new(1.7, 0.6, 0.9), Offset = CFrame.new(0, 0, 0), Color = color("#1F2A2C"), Material = Enum.Material.Slate },
+				{ Attach = "LowerTorso", Role = "Shell", Size = Vector3.new(2.1, 0.9, 0.3), Offset = CFrame.new(0, -0.35, -0.55) * CFrame.Angles(math.rad(8), 0, 0), Color = color("#2E3A3D"), Material = Enum.Material.Slate },
+				{ Attach = "LowerTorso", Role = "Plate", Size = Vector3.new(2.1, 0.9, 0.3), Offset = CFrame.new(0, -0.35, 0.55) * CFrame.Angles(math.rad(-8), 0, 0), Color = color("#2E3A3D"), Material = Enum.Material.Slate },
+				{ Attach = "LowerTorso", Role = "Leg", Size = Vector3.new(2.4, 0.35, 0.35), Offset = CFrame.new(-1.5, 0, -0.25) * CFrame.Angles(0, math.rad(15), math.rad(-20)), Color = color("#7A3E2C"), Material = Enum.Material.SmoothPlastic },
+				{ Attach = "LowerTorso", Role = "Leg", Size = Vector3.new(2.4, 0.35, 0.35), Offset = CFrame.new(1.5, 0, -0.25) * CFrame.Angles(0, math.rad(-15), math.rad(20)), Color = color("#7A3E2C"), Material = Enum.Material.SmoothPlastic },
+				{ Attach = "LowerTorso", Role = "Leg", Size = Vector3.new(2.4, 0.35, 0.35), Offset = CFrame.new(-1.5, 0, 0.35) * CFrame.Angles(0, math.rad(-20), math.rad(-25)), Color = color("#7A3E2C"), Material = Enum.Material.SmoothPlastic },
+				{ Attach = "LowerTorso", Role = "Leg", Size = Vector3.new(2.4, 0.35, 0.35), Offset = CFrame.new(1.5, 0, 0.35) * CFrame.Angles(0, math.rad(20), math.rad(25)), Color = color("#7A3E2C"), Material = Enum.Material.SmoothPlastic },
+				-- Crested helm: teal eye slits, a coral crest and swept-back feelers.
+				{ Attach = "Head", Role = "Helm", Size = Vector3.new(1.45, 1.45, 1.5), Offset = CFrame.new(0, 0.05, 0.02), Color = color("#2E3A3D"), Material = Enum.Material.Metal },
+				{ Attach = "Head", Role = "Visor", Size = Vector3.new(1.2, 0.5, 0.15), Offset = CFrame.new(0, -0.15, -0.75), Color = color("#1F2A2C"), Material = Enum.Material.Metal },
+				{ Attach = "Head", Role = "Eyes", Size = Vector3.new(0.38, 0.09, 0.06), Offset = CFrame.new(-0.28, 0.1, -0.79), Color = color("#3FE0D0"), Material = Enum.Material.Neon },
+				{ Attach = "Head", Role = "Eyes", Size = Vector3.new(0.38, 0.09, 0.06), Offset = CFrame.new(0.28, 0.1, -0.79), Color = color("#3FE0D0"), Material = Enum.Material.Neon },
+				{ Attach = "Head", Role = "Crest", Size = Vector3.new(0.22, 0.85, 1.7), Offset = CFrame.new(0, 0.95, 0.1), Color = color("#C4706A"), Material = Enum.Material.Pebble },
+				{ Attach = "Head", Role = "Crest", Size = Vector3.new(0.18, 0.55, 0.5), Offset = CFrame.new(0, 1.25, -0.45) * CFrame.Angles(math.rad(25), 0, 0), Color = color("#C4706A"), Material = Enum.Material.Pebble },
+				{ Attach = "Head", Role = "Feeler", Size = Vector3.new(0.14, 0.14, 1.4), Offset = CFrame.new(-0.5, 0.6, 0.6) * CFrame.Angles(math.rad(30), 0, 0), Color = color("#8A4A36"), Material = Enum.Material.SmoothPlastic },
+				{ Attach = "Head", Role = "Feeler", Size = Vector3.new(0.14, 0.14, 1.4), Offset = CFrame.new(0.5, 0.6, 0.6) * CFrame.Angles(math.rad(30), 0, 0), Color = color("#8A4A36"), Material = Enum.Material.SmoothPlastic },
+				{ Attach = "Head", Role = "Barnacle", Size = Vector3.new(0.3, 0.3, 0.3), Offset = CFrame.new(0.55, 0.5, 0.3), Color = color("#C9C0A8"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
+				-- Arms: shell plates down to two great claws (the left one larger, crab-fashion).
+				{ Attach = "RightUpperArm", Role = "Plate", Size = Vector3.new(1.3, 1.4, 1.3), Offset = CFrame.new(0, 0.1, 0), Color = color("#3E4A4D"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
+				{ Attach = "LeftUpperArm", Role = "Plate", Size = Vector3.new(1.3, 1.4, 1.3), Offset = CFrame.new(0, 0.1, 0), Color = color("#3E4A4D"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
+				{ Attach = "RightLowerArm", Role = "Plate", Size = Vector3.new(1.15, 1.2, 1.15), Offset = CFrame.new(0, 0, 0), Color = color("#2E3A3D"), Material = Enum.Material.Slate },
+				{ Attach = "LeftLowerArm", Role = "Plate", Size = Vector3.new(1.15, 1.2, 1.15), Offset = CFrame.new(0, 0, 0), Color = color("#2E3A3D"), Material = Enum.Material.Slate },
+				{ Attach = "RightLowerArm", Role = "Barnacle", Size = Vector3.new(0.35, 0.35, 0.35), Offset = CFrame.new(0.45, 0.2, 0.4), Color = color("#BDB49B"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
+				{ Attach = "RightHand", Role = "RightClaw", Size = Vector3.new(1.5, 1.1, 2.4), Offset = CFrame.new(0, -0.5, -0.8), Color = color("#8A4A36"), Material = Enum.Material.Pebble },
+				{ Attach = "RightHand", Role = "Pincer", Size = Vector3.new(0.6, 0.45, 1.5), Offset = CFrame.new(0.25, -1.05, -1.4), Color = color("#A4553A"), Material = Enum.Material.Pebble },
+				{ Attach = "LeftHand", Role = "Claw", Size = Vector3.new(1.8, 1.3, 2.9), Offset = CFrame.new(0, -0.55, -1.0), Color = color("#8A4A36"), Material = Enum.Material.Pebble },
+				{ Attach = "LeftHand", Role = "Pincer", Size = Vector3.new(0.7, 0.5, 1.8), Offset = CFrame.new(0.3, -1.2, -1.6), Color = color("#A4553A"), Material = Enum.Material.Pebble },
+				{ Attach = "LeftHand", Role = "Barnacle", Size = Vector3.new(0.4, 0.4, 0.4), Offset = CFrame.new(-0.6, 0, -0.6), Color = color("#C9C0A8"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
+				-- The coral greatsword, gripped in the right claw: bone guard and edges.
+				{ Attach = "RightHand", Role = "Grip", Size = Vector3.new(0.3, 0.3, 1.4), Offset = CFrame.new(-0.2, -0.45, -1.2), Color = color("#3B2A1E"), Material = Enum.Material.Wood },
+				{ Attach = "RightHand", Role = "Guard", Size = Vector3.new(2.0, 0.35, 0.4), Offset = CFrame.new(-0.2, -0.45, -2.2), Color = color("#C9C0A8"), Material = Enum.Material.Pebble },
+				{ Attach = "RightHand", Role = "Blade", Size = Vector3.new(0.75, 0.2, 6.6), Offset = CFrame.new(-0.2, -0.45, -5.7), Color = color("#C4706A"), Material = Enum.Material.Pebble },
+				{ Attach = "RightHand", Role = "Edge", Size = Vector3.new(0.12, 0.22, 6.4), Offset = CFrame.new(0.22, -0.45, -5.6), Color = color("#C9C0A8"), Material = Enum.Material.SmoothPlastic },
+				{ Attach = "RightHand", Role = "Edge", Size = Vector3.new(0.12, 0.22, 6.4), Offset = CFrame.new(-0.62, -0.45, -5.6), Color = color("#C9C0A8"), Material = Enum.Material.SmoothPlastic },
+				{ Attach = "RightHand", Role = "Coral", Size = Vector3.new(0.45, 0.45, 0.45), Offset = CFrame.new(0.15, -0.3, -3.6), Color = color("#C4706A"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
+				{ Attach = "RightHand", Role = "Coral", Size = Vector3.new(0.4, 0.4, 0.4), Offset = CFrame.new(-0.55, -0.3, -5.1), Color = color("#C4706A"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
+				{ Attach = "RightHand", Role = "Coral", Size = Vector3.new(0.35, 0.35, 0.35), Offset = CFrame.new(0.1, -0.3, -7.0), Color = color("#C9C0A8"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
+				-- Legs: greaves and sabatons.
+				{ Attach = "LeftUpperLeg", Role = "Plate", Size = Vector3.new(1.25, 1.35, 1.25), Offset = CFrame.new(0, 0, 0), Color = color("#323B3D"), Material = Enum.Material.Slate },
+				{ Attach = "RightUpperLeg", Role = "Plate", Size = Vector3.new(1.25, 1.35, 1.25), Offset = CFrame.new(0, 0, 0), Color = color("#323B3D"), Material = Enum.Material.Slate },
+				{ Attach = "LeftLowerLeg", Role = "Plate", Size = Vector3.new(1.15, 1.35, 1.25), Offset = CFrame.new(0, 0, 0), Color = color("#3E4A4D"), Material = Enum.Material.Slate },
+				{ Attach = "RightLowerLeg", Role = "Plate", Size = Vector3.new(1.15, 1.35, 1.25), Offset = CFrame.new(0, 0, 0), Color = color("#3E4A4D"), Material = Enum.Material.Slate },
+				{ Attach = "RightLowerLeg", Role = "Barnacle", Size = Vector3.new(0.35, 0.35, 0.35), Offset = CFrame.new(0.5, 0.3, -0.5), Color = color("#C9C0A8"), Material = Enum.Material.Pebble, Shape = Enum.PartType.Ball },
+				{ Attach = "LeftFoot", Role = "Foot", Size = Vector3.new(1.2, 0.5, 1.7), Offset = CFrame.new(0, 0.05, -0.25), Color = color("#2E3A3D"), Material = Enum.Material.Slate },
+				{ Attach = "RightFoot", Role = "Foot", Size = Vector3.new(1.2, 0.5, 1.7), Offset = CFrame.new(0, 0.05, -0.25), Color = color("#2E3A3D"), Material = Enum.Material.Slate },
+			},
+		},
+		Moves = {},
+	},
 }
 
 -- Ids used before Phase 9 (saved stats, old spawn points, dev commands) map to their successors.

@@ -139,6 +139,12 @@ local function rootOf(player: Player): BasePart?
 	return nil
 end
 
+-- A mob with AllowedTargets (a Guardian's adds) only fights those players.
+local function allowed(mob: Types.Mob, player: Player): boolean
+	local set = mob.AllowedTargets
+	return set == nil or set[player] == true
+end
+
 local function canSee(mob: Types.Mob, target: BasePart): boolean
 	local eye = mob.Root.Position + Vector3.new(0, SEE.SightHeight * mob.Def.Body.Scale - mob.Root.Size.Y / 2, 0)
 	local offset = target.Position - eye
@@ -151,7 +157,7 @@ local function perceive(mob: Types.Mob): Player?
 	local bestDistance = mob.Def.AggroRadius
 	local position = mob.Root.Position
 	for _, player in Players:GetPlayers() do
-		local root = rootOf(player)
+		local root = if allowed(mob, player) then rootOf(player) else nil
 		if root then
 			local distance = (root.Position - position).Magnitude
 			if distance <= bestDistance and canSee(mob, root) then
@@ -177,7 +183,7 @@ local function pickTarget(mob: Types.Mob): (Player?, BasePart?)
 	local bestRoot: BasePart? = nil
 	local bestThreat = -math.huge
 	for player, threat in mob.Threat do
-		local root = if player.Parent then rootOf(player) else nil
+		local root = if player.Parent and allowed(mob, player) then rootOf(player) else nil
 		if not root or flat(root.Position - mob.Home).Magnitude > AI.LeashRadius then
 			mob.Threat[player] = nil
 		elseif threat > bestThreat then
@@ -474,7 +480,7 @@ end
 
 -- Spotting or being hit: start the fight (and wake the pack).
 function Brain.Engage(mob: Types.Mob, player: Player, others: { Types.Mob }?)
-	if mob.Dead or mob.State == "Return" then
+	if mob.Dead or mob.State == "Return" or mob.Scripted or not allowed(mob, player) then
 		return
 	end
 	local wasCalm = mob.State == "Idle" or mob.State == "Patrol"

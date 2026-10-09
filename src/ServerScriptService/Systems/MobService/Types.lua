@@ -18,6 +18,27 @@ export type SpawnPoint = {
 	NightOnly: boolean,
 }
 
+-- A per-mob weak point (overrides Def.WeakPoint): blows landing within Arc degrees of its
+-- Side deal Damage x and Posture x. Floor Guardians move theirs between phases.
+export type WeakPointSpec = {
+	Side: "Back" | "Front",
+	Arc: number,
+	Damage: number,
+	Posture: number,
+}
+
+-- Optional extras for MobService.Spawn.
+export type SpawnOptions = {
+	Scripted: boolean?, -- driven by its owner (GuardianService): never thinks, no kill rewards or respawn
+	MaxHealth: number?, -- overrides the def (and elite) health
+	MaxPosture: number?,
+	HitRadius: number?, -- big bodies (TargetService.SetHitSize)
+	HitHeight: number?,
+	Facing: Vector3?, -- initial look direction (default: random)
+	AllowedTargets: { [Player]: boolean }?, -- only these players are noticed, chased or taunt it (live set)
+	OnDied: ((Mob) -> ())?, -- runs once when it dies (after rewards for normal mobs)
+}
+
 export type NavState = {
 	Path: Path,
 	Waypoints: { PathWaypoint },
@@ -65,6 +86,12 @@ export type Mob = {
 	Asleep: boolean,
 	Nav: NavState,
 	Dead: boolean,
+
+	Scripted: boolean, -- its owner drives it (Floor Guardians): Brain never thinks for it
+	AllowedTargets: { [Player]: boolean }?, -- nil: anyone; else only these players
+	WeakPoint: WeakPointSpec?, -- overrides Def.WeakPoint
+	PostureTaken: number, -- multiplies posture damage it takes (a Guardian's ebb tide)
+	OnDied: ((Mob) -> ())?,
 }
 
 return {}

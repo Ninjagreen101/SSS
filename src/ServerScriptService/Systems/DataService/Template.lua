@@ -101,6 +101,7 @@ local template: Types.PlayerData = {
 	Floors = {
 		Unlocked = { ["1"] = true },
 		GuardiansCleared = {},
+		IntrosSeen = {}, -- Guardian id -> true once its intro has played (skippable after)
 		Current = "1",
 	},
 	Waystones = {

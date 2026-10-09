@@ -127,4 +127,13 @@ Migrations.Steps[4] = function(data: { [string]: any })
 	end
 end
 
+-- v5 (Phase 10): Floors.IntrosSeen (Guardian intros become skippable after the first view).
+-- Additive; a malformed value from an old draft is replaced (Reconcile fills a missing one).
+Migrations.Steps[5] = function(data: { [string]: any })
+	local floors = data.Floors
+	if type(floors) == "table" and floors.IntrosSeen ~= nil and type(floors.IntrosSeen) ~= "table" then
+		floors.IntrosSeen = {}
+	end
+end
+
 return Migrations

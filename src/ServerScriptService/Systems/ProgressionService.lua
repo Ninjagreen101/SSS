@@ -172,6 +172,27 @@ function ProgressionService.AwardKill(def: Mobs.MobDef, elite: boolean, players:
 	end
 end
 
+-- A Floor Guardian felled (GuardianService pays every member who earned a share): its XP,
+-- the GuardianKills count and the usual "+XP" toast. Loot, gold and first-clear rewards are
+-- GuardianService's.
+function ProgressionService.AwardGuardianKill(player: Player, xp: number)
+	if not DataService.IsLoaded(player) then
+		return
+	end
+	local amount = math.max(0, math.floor(xp))
+	DataService.Increment(player, { "PlayStats", "GuardianKills" }, 1)
+	Net.Fire("Notify", player, "Toasts.KillRewards", { xp = amount }, "Info")
+	ProgressionService.AddXP(player, amount)
+end
+
+-- Extra skill points (a Guardian's first clear).
+function ProgressionService.AwardSkillPoints(player: Player, points: number)
+	local amount = math.max(0, math.floor(points))
+	if amount > 0 and DataService.IsLoaded(player) then
+		DataService.Increment(player, { "SkillPoints" }, amount)
+	end
+end
+
 -- STAT POINTS ------------------------------------------------------------------------
 
 local function result(player: Player, ok: boolean, action: string, reason: string?, payload: { [string]: any }?)

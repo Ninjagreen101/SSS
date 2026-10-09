@@ -169,6 +169,7 @@ export type PlayerData = {
 	Floors: {
 		Unlocked: { [string]: boolean }, -- "1", "2" ...
 		GuardiansCleared: { [string]: number },
+		IntrosSeen: { [string]: boolean }, -- Guardian id -> intro already watched (Phase 10)
 		Current: string,
 	},
 	Waystones: {

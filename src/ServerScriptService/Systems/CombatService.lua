@@ -34,6 +34,11 @@
 	  Pressure, Draw) through SetSiphonModifier.
 	  Dummies and enemies use the same path through NpcSwing, so a parry or
 	  dodge works identically against everything.
+	  Big bodies (Floor Guardians): swings add the defender's HitRadius to
+	  their reach and both fighters' HitHeight to the vertical tolerance
+	  (TargetService.SetHitSize). An Unflinching fighter (SetUnflinching) is
+	  not staggered by clean hits, parries or stuns; only a posture break
+	  interrupts it. SetBrokenDuration overrides how long that break lasts.
 
 	Feedback goes out as DamageDealt (numbers, flashes, hit stop) and
 	SwingVisual (other players' slash effects) to players nearby.
@@ -127,6 +132,8 @@ type Fighter = {
 	MaxPosture: number,
 	PostureHitAt: number,
 	HyperArmor: boolean,
+	Unflinching: boolean, -- clean hits, parries and stuns never stagger it (bosses)
+	BrokenDuration: number?, -- seconds a posture break lasts (default Posture.BrokenDuration)
 	HitCount: number,
 	Sent: { [string]: any },
 }
@@ -212,7 +219,7 @@ end
 
 local function breakPosture(f: Fighter)
 	f.Posture = f.MaxPosture
-	interrupt(f, "Broken", C.Posture.BrokenDuration)
+	interrupt(f, "Broken", f.BrokenDuration or C.Posture.BrokenDuration)
 end
 
 -- Adds posture damage; returns true if this broke the fighter.
@@ -440,7 +447,7 @@ local function resolveHit(attacker: Fighter?, defender: Fighter, hit: HitSpec, s
 			DataService.Increment(player, { "PlayStats", "Parries" }, 1)
 		end
 		if attacker and isAlive(attacker) then
-			if not addPosture(attacker, C.Posture.ParriedPostureDamage) then
+			if not addPosture(attacker, C.Posture.ParriedPostureDamage) and not attacker.Unflinching then
 				interrupt(attacker, "Staggered", C.HitStun.Parried)
 			end
 		end
@@ -488,12 +495,14 @@ local function resolveHit(attacker: Fighter?, defender: Fighter, hit: HitSpec, s
 	local postureScale = 1
 	local resolver = weakPointResolver
 	if resolver and attacker then
+		-- (damage x, posture x). The posture scale applies on its own as well: a Guardian's
+		-- ebb-tide shell takes more posture everywhere, not only at the weak point.
 		local dmgScale, postScale = resolver(defender.Target.Model, source)
 		if dmgScale > 1 then
 			damage *= dmgScale
-			postureScale = postScale
 			crit = true -- weak-point blows show as big numbers
 		end
+		postureScale = postScale
 	end
 	if crit then
 		-- Lancer tree: CritDamage raises the multiplier.
@@ -522,7 +531,7 @@ local function resolveHit(attacker: Fighter?, defender: Fighter, hit: HitSpec, s
 	if not wasBroken and defender.Target.Kind ~= "Player" and addPosture(defender, hit.Posture * postureScale) then
 		outcome = "Broken"
 	end
-	if outcome ~= "Broken" and not wasBroken and not defender.HyperArmor and isAlive(defender) then
+	if outcome ~= "Broken" and not wasBroken and not defender.HyperArmor and not defender.Unflinching and isAlive(defender) then
 		interrupt(defender, "Staggered", hit.HitStun)
 	end
 	if attacker then
@@ -541,16 +550,19 @@ local function swing(attacker: Fighter, spec: SwingSpec): number
 	local origin = attacker.Target.Root.Position
 	local rewindTo = now() - TargetService.RewindFor(attacker.Target)
 	local halfArc = math.rad(spec.Arc / 2)
-	local radius = C.HitValidation.TargetRadius
+	local attackerHeight = attacker.Target.HitHeight
 	local hits = 0
 	for model, defender in fighters do
 		local target = defender.Target
 		if defender ~= attacker and target.Team ~= attacker.Target.Team and isAlive(defender) then
 			local position = TargetService.PositionAt(target, rewindTo)
 			local offset = position - origin
-			if math.abs(offset.Y) <= C.HitValidation.VerticalReach then
+			-- Big bodies stand tall: both fighters' HitHeight widens the vertical band.
+			if math.abs(offset.Y) <= C.HitValidation.VerticalReach + attackerHeight + target.HitHeight then
 				local horizontal = flat(offset)
 				local distance = horizontal.Magnitude
+				-- A blow lands on a body, not a point: the defender's size adds to the reach.
+				local radius = C.HitValidation.TargetRadius + target.HitRadius
 				if distance <= spec.Reach + radius then
 					-- Very close targets are hit regardless of angle (you're inside their body).
 					local angleOk = distance < radius
@@ -928,10 +940,28 @@ function CombatService.GrantIFrames(model: Model, duration: number)
 end
 
 -- Stuns a target for `duration` (Frozen): it can't act, its current action is cancelled.
+-- Unflinching fighters (bosses) ignore stuns.
 function CombatService.Stun(model: Model, duration: number)
 	local f = fighters[model]
-	if f and isAlive(f) then
+	if f and isAlive(f) and not f.Unflinching then
 		interrupt(f, "Staggered", duration)
+	end
+end
+
+-- Bosses: clean hits, parries and stuns no longer stagger the fighter; a posture
+-- break still interrupts it.
+function CombatService.SetUnflinching(model: Model, unflinching: boolean)
+	local f = fighters[model]
+	if f then
+		f.Unflinching = unflinching
+	end
+end
+
+-- How long this fighter stays Broken after a posture break (nil: Posture.BrokenDuration).
+function CombatService.SetBrokenDuration(model: Model, seconds: number?)
+	local f = fighters[model]
+	if f then
+		f.BrokenDuration = if seconds then math.max(0, seconds) else nil
 	end
 end
 
@@ -1006,6 +1036,8 @@ local function addFighter(target: TargetService.Target)
 		MaxPosture = C.Posture.Max,
 		PostureHitAt = 0,
 		HyperArmor = false,
+		Unflinching = false,
+		BrokenDuration = nil,
 		HitCount = 0,
 		Sent = {},
 	}

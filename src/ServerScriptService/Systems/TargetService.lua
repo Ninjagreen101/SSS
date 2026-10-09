@@ -13,6 +13,9 @@
 	  capped at MaxRewind), so laggy players still land fair hits.
 	- ApplyDamage routes player damage through VitalsService (one owner for
 	  player health) and everything else straight to the Humanoid.
+	- Hit size: big bodies (Floor Guardians) set HitRadius / HitHeight with
+	  SetHitSize. Blows add the defender's HitRadius to their reach and both
+	  fighters' HitHeight to the vertical tolerance. Everything else is 0.
 ]]
 
 local CollectionService = game:GetService("CollectionService")
@@ -45,6 +48,8 @@ export type Target = {
 	History: { Sample },
 	HistoryIndex: number,
 	Connections: { RBXScriptConnection },
+	HitRadius: number, -- studs added to a blow's reach against this target (big bodies)
+	HitHeight: number, -- extra vertical studs blows reach on it, and its own blows reach
 }
 
 local TargetService = {}
@@ -86,6 +91,8 @@ function TargetService.Register(model: Model, kind: Kind, team: Team, player: Pl
 		History = {},
 		HistoryIndex = 0,
 		Connections = {},
+		HitRadius = 0,
+		HitHeight = 0,
 	}
 	targets[model] = target
 	record(target)
@@ -113,6 +120,15 @@ function TargetService.Unregister(model: Model)
 		CollectionService:RemoveTag(model, Attributes.Tags.CombatTarget)
 	end
 	TargetService.Removed:Fire(target)
+end
+
+-- Big bodies: extra reach and vertical tolerance for blows on (and from) this target.
+function TargetService.SetHitSize(model: Model, radius: number, height: number)
+	local target = targets[model]
+	if target then
+		target.HitRadius = math.max(0, radius)
+		target.HitHeight = math.max(0, height)
+	end
 end
 
 function TargetService.Get(model: Model): Target?
