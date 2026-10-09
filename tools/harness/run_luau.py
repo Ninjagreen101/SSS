@@ -16,7 +16,7 @@ import subprocess
 import sys
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-LUAU = os.environ.get("LUAU_BIN", "/tmp/claude-0/tools/luau")
+LUAU = os.environ.get("LUAU_BIN", "luau")
 
 
 def collect(project: dict) -> dict[str, str]:
