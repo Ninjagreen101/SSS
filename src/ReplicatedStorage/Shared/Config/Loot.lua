@@ -134,6 +134,20 @@ return TableUtil.DeepFreeze({
 				{ Id = "TidekeepersPromise", Chance = 0.04, EliteOnly = true },
 			},
 		},
+		-- Floor 1 Guardian (Data/Guardians Rewards.LootTable).
+		Brinewarden = {
+			GearChance = 1.0,
+			MaterialRolls = 3,
+			Materials = {
+				{ Id = "WardenShellFragment", Weight = 6, Min = 2, Max = 4 },
+				{ Id = "BrinewardensPearl", Weight = 1, Min = 1, Max = 1 },
+			},
+			Extra = {
+				{ Id = "Tidecleaver", Chance = 0.12 },
+				{ Id = "BrinewardenCarapace", Chance = 0.12 },
+				{ Id = "WardensTideCore", Chance = 0.08 },
+			},
+		},
 		LanternAcolyte = {
 			GearChance = 0.16,
 			MaterialRolls = 1,

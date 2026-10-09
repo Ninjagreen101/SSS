@@ -392,6 +392,7 @@ local Strings = {
 		Wispfangs = { Name = "Wispfangs", Description = "Paired blades that catch the marshlight and keep a little of it.", Flavor = "Two lights went into the reeds. Two blades came out." },
 		CisternGreatblade = { Name = "Cistern Greatblade", Description = "A heavy relic hauled out of the Sunken Cistern, still cold to the touch.", Flavor = "Whatever it was built to hold back, it held." },
 		SaltglassNeedle = { Name = "Saltglass Needle", Description = "A needle of salt-hardened glass that never dulls and never breaks.", Flavor = "Grown, not forged, in the brine pools below the cliffs." },
+		Tidecleaver = { Name = "Tidecleaver", Description = "The Brinewarden's coral greatsword, cut down to a Climber's grip. Its edge glows with the tide.", Flavor = "It was never meant to be lifted by one who yields." },
 		TidekeepersPromise = { Name = "Tidekeeper's Promise", Description = "The lance of the last Tidekeeper. Its blows gather into a returning tide.", Flavor = "\"The tide always comes back.\" She did not." },
 
 		-- Armor
@@ -405,6 +406,7 @@ local Strings = {
 		TidewardenGreaves = { Name = "Tidewarden Greaves", Description = "Greaves built for standing firm in a flooding canal.", Flavor = "Wardens never retreated. They waited for the water to." },
 		TidewardenGauntlets = { Name = "Tidewarden Gauntlets", Description = "Articulated gauntlets with a sure, steady grip.", Flavor = "Knuckles worn smooth from hauling people out of the canals." },
 		TidewardenMantle = { Name = "Tidewarden Mantle", Description = "A deep-teal mantle woven with Current thread.", Flavor = "In storms it ripples against the wind." },
+		BrinewardenCarapace = { Name = "Brinewarden Carapace", Description = "Coral-red plate grown over a crab-knight's chest. Heavy, and nearly unbreakable.", Flavor = "It still smells of the deep." },
 
 		-- Accessories
 		PearlRing = { Name = "Pearl Ring", Description = "A simple ring set with a tide pearl. Your Vessel holds a little more.", Flavor = "A promise worn on one finger." },
@@ -427,11 +429,14 @@ local Strings = {
 		TidePearl = { Name = "Tide Pearl", Description = "A bead of condensed Current, prized by smiths and alchemists.", Flavor = "Hold it to your ear: an ocean turns inside." },
 		WispEssence = { Name = "Wisp Essence", Description = "Living marshlight for the Current Loom.", Flavor = "It leans toward your heartbeat." },
 		SpireIngot = { Name = "Spire Ingot", Description = "Iron fused with tide pearls. Needed for upgrades past +6.", Flavor = "Smiths say it sings when it cools." },
+		WardenShellFragment = { Name = "Warden Shell Fragment", Description = "A shard of the Brinewarden's coral-red armour.", Flavor = "Still warm, as if the crab-knight were watching." },
+		BrinewardensPearl = { Name = "Brinewarden's Pearl", Description = "A bone-pale pearl that pulses with deep Current. Dropped by the Brinewarden.", Flavor = "It held the tide in place for a hundred years." },
 
 		-- Beacon cores
 		BrineCore = { Name = "Brine Core", Description = "Slot it to turn your Beacons sea-green. Sentry shots deal 20% more damage.", Flavor = "It hums like surf on stone." },
 		PearlCore = { Name = "Pearl Core", Description = "Slot it to turn your Beacons pearl-white. Aegis re-forms 25% faster.", Flavor = "Smooth as a promise kept." },
 		EchoCore = { Name = "Echo Core", Description = "Slot it to turn your Beacons violet. Relay recasts 25% sooner.", Flavor = "Whisper into it and it whispers back, a moment late." },
+		WardensTideCore = { Name = "Warden's Tide Core", Description = "Slot it to turn your Beacons tide-teal. Sentry shots deal 25% more damage and Aegis re-forms 20% faster.", Flavor = "It keeps the Warden's patient rhythm." },
 
 		-- Blueprints and quest items
 		TideforgedBlueprint = { Name = "Tideforged Blueprint", Description = "Use to learn the Tideforged Longsword recipe at the Forge.", Flavor = "Written in a smith's careful, salt-stained hand." },

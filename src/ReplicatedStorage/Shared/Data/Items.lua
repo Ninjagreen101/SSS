@@ -270,6 +270,16 @@ weapon({
 	},
 })
 
+-- Named Epic: Floor 1 Guardian drop (Config/Loot Brinewarden).
+weapon({
+	Id = "Tidecleaver", Class = "Greatblade", Rarity = "Epic", Level = 12, Damage = 38, Posture = 26,
+	Scaling = { Strength = 0.9, Finesse = 0.1 }, Price = 180, Weight = 15,
+	Model = {
+		BladeLength = 5.8, BladeWidth = 0.85, GripLength = 1.5, GuardWidth = 2.1, BladeColor = color("#C4706A"),
+		GuardColor = color("#C9C0A8"), EdgeGlow = color("#3FE0D0"),
+	},
+})
+
 -- ARMOR ---------------------------------------------------------------------
 -- Armor = damage reduction fraction (summed with Vitality, capped by
 -- Config.Combat.Damage.DefenseCap). Stats are base stat points.
@@ -319,6 +329,7 @@ armor({ Id = "TidewardenMail", Slot = "Chest", Rarity = "Rare", Level = 6, Armor
 armor({ Id = "TidewardenGreaves", Slot = "Legs", Rarity = "Rare", Level = 6, Armor = 0.045, Stats = { Endurance = 2 }, Price = 52, Weight = 5, Look = { Kind = "Legs", Color = TIDE, Accent = TIDE_TRIM } })
 armor({ Id = "TidewardenGauntlets", Slot = "Hands", Rarity = "Rare", Level = 6, Armor = 0.025, Stats = { Strength = 1, Finesse = 1 }, Price = 40, Weight = 2, Look = { Kind = "Gloves", Color = TIDE, Accent = TIDE_TRIM } })
 armor({ Id = "TidewardenMantle", Slot = "Cloak", Rarity = "Rare", Level = 6, Armor = 0.025, Stats = { Draw = 2, Control = 1 }, Price = 44, Weight = 3, Look = { Kind = "Cloak", Color = color("#1F3F4C"), Accent = TIDE_TRIM } })
+armor({ Id = "BrinewardenCarapace", Slot = "Chest", Rarity = "Epic", Level = 12, Armor = 0.09, Stats = { Vitality = 4, Endurance = 2 }, Price = 150, Weight = 14, Look = { Kind = "Chest", Color = color("#C4706A"), Accent = color("#C9C0A8") } })
 
 -- ACCESSORIES -----------------------------------------------------------------
 -- Two ring slots and one amulet. Bonuses are fixed lines on every copy
@@ -429,6 +440,8 @@ material("BrineShell", "Common", 4, { Kind = "Shell", Color = color("#C9C2B3"), 
 material("TidePearl", "Uncommon", 8, { Kind = "Pearl", Color = color("#E9F4F6"), Accent = color("#3FE0D0"), Glow = true })
 material("WispEssence", "Uncommon", 8, { Kind = "Wisp", Color = color("#9BFFB5"), Accent = color("#3FE0D0"), Glow = true })
 material("SpireIngot", "Rare", 30, { Kind = "Ingot", Color = color("#8FA6B8"), Accent = color("#3FE0D0"), Glow = true })
+material("WardenShellFragment", "Uncommon", 14, { Kind = "Shell", Color = color("#C4706A"), Accent = color("#C9C0A8") })
+material("BrinewardensPearl", "Rare", 60, { Kind = "Pearl", Color = color("#C9C0A8"), Accent = color("#3FE0D0"), Glow = true })
 
 -- BEACON CORES ----------------------------------------------------------------
 -- Slotted from the inventory; they recolour your Beacons and strengthen one
@@ -453,6 +466,7 @@ end
 core("BrineCore", "Rare", 40, { Color = color("#3FE09A"), Bonuses = { SentryDamage = 0.2 } })
 core("PearlCore", "Rare", 40, { Color = color("#F3EEE2"), Bonuses = { AegisRecharge = 0.25 } })
 core("EchoCore", "Rare", 40, { Color = color("#B36BFF"), Bonuses = { RelayCooldown = 0.25 } })
+core("WardensTideCore", "Epic", 90, { Color = color("#3FE0D0"), Bonuses = { SentryDamage = 0.25, AegisRecharge = 0.2 } })
 
 -- BLUEPRINTS AND QUEST ITEMS ----------------------------------------------------
 
