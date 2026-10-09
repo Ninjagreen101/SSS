@@ -73,6 +73,7 @@ export type PieceOpts = {
 	color: string?,
 	tag: string?,
 	noCollide: boolean?,
+	text: string?,
 }
 
 function Plan.piece(node: PlanNode, kit: string, x: number, y: number, z: number, ry: number, opts: PieceOpts?): PiecePlacement
@@ -94,6 +95,7 @@ function Plan.piece(node: PlanNode, kit: string, x: number, y: number, z: number
 		color = o.color,
 		tag = o.tag,
 		noCollide = o.noCollide,
+		text = o.text,
 	}
 	table.insert(node.pieces, p)
 	return p
@@ -115,6 +117,7 @@ function Plan.pieceIn(node: PlanNode, f: Frame, kit: string, lx: number, ly: num
 		color = o.color,
 		tag = o.tag,
 		noCollide = o.noCollide,
+		text = o.text,
 	}
 	return Plan.piece(node, kit, x, y, z, f.ry + lry, merged)
 end
@@ -127,6 +130,7 @@ export type SolidOpts = {
 	transparency: number?,
 	tag: string?,
 	name: string?,
+	text: string?,
 	rx: number?,
 	rz: number?,
 }
@@ -149,6 +153,7 @@ function Plan.solid(node: PlanNode, x: number, y: number, z: number, sx: number,
 		transparency = opts.transparency,
 		tag = opts.tag,
 		name = opts.name,
+		text = opts.text,
 	}
 	table.insert(node.solids, s)
 	return s
@@ -193,6 +198,7 @@ function Plan.assembly(node: PlanNode, f: Frame, name: string, lx: number, ly: n
 		local m = KitManifest[part.kit]
 		local recolor = o.color ~= nil and m ~= nil and m.material == "Fabric"
 		Plan.pieceIn(node, af, part.kit, part.x, part.y, part.z, part.ry or 0, {
+			s = part.s,
 			color = if recolor then o.color else part.color,
 			material = part.material,
 			noCollide = o.noCollide,

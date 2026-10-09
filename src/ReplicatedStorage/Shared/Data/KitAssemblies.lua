@@ -111,6 +111,23 @@ local Assemblies: { [string]: Assembly } = {
 		emitters = { { preset = "WaystoneMotes", x = 0, y = 4, z = 0 } },
 		footprint = { 10, 10 },
 	},
+	stair_post = {
+		parts = {
+			{ kit = "pillar_square_h12", x = 0, y = 0, z = 0, s = 0.5, material = "Limestone", color = "StoneLight" },
+			{ kit = "lantern_glass", x = 0, y = 6, z = 0, s = 1.4 },
+		},
+		lights = { { x = 0, y = 6.8, z = 0, color = "LanternGlow", range = 18, brightness = 1.3, night = true, attach = 2 } },
+		footprint = { 1.6, 1.6 },
+	},
+	notice_board = {
+		parts = {
+			{ kit = "corner_timber_h12", x = -3.6, y = 0, z = 0, s = 0.65 },
+			{ kit = "corner_timber_h12", x = 3.6, y = 0, z = 0, s = 0.65 },
+			{ kit = "sign_board", x = 0, y = 7.4, z = 0, s = 1.4 },
+			{ kit = "roof_ridge_l8", x = 0, y = 7.9, z = 0, s = 1 },
+		},
+		footprint = { 8, 2 },
+	},
 	hanging_sign = {
 		parts = {
 			{ kit = "sign_bracket", x = 0, y = 0, z = 0 },

@@ -73,19 +73,22 @@ function HiddenPlanner.plan(def: HiddenAreaDef, field: Field): (PlanNode?, { Ter
 	table.insert(node.tags, "HiddenArea")
 
 	if def.kind == "Grotto" then
-		-- a tunnel into the market cliff from the marsh side, opening into a cave
-		table.insert(carves, { op = "Air", shape = "Block", material = "Air", x = def.x - 14, y = def.y + 5, z = def.z, sx = 30, sy = 10, sz = 10, ry = def.ry })
-		table.insert(carves, { op = "Air", shape = "Ball", material = "Air", x = def.x + 10, y = def.y + 8, z = def.z, sx = 34, sy = 34, sz = 34, ry = 0 })
-		table.insert(carves, { op = "Fill", shape = "Block", material = "Slate", x = def.x + 10, y = def.y - 6, z = def.z, sx = 40, sy = 12, sz = 40, ry = 0 })
-		Plan.solid(node, -10, 0.5, 0, 10, 1, 36, 0, { kind = "Surface", material = "WoodPlanks", color = "WoodWet" })
+		-- a low tunnel into the market cliff from the marsh shore, opening into a
+		-- domed smugglers' cave well below the terrace surface (checked against
+		-- the terrain field: the dome top stays ~7 studs under the slope)
+		table.insert(carves, { op = "Air", shape = "Block", material = "Air", x = def.x - 12, y = def.y + 4.5, z = def.z, sx = 44, sy = 9, sz = 9, ry = 0 })
+		table.insert(carves, { op = "Air", shape = "Ball", material = "Air", x = def.x + 18, y = def.y + 6, z = def.z, sx = 24, sy = 24, sz = 24, ry = 0 })
+		table.insert(carves, { op = "Fill", shape = "Block", material = "Slate", x = def.x + 4, y = def.y - 6, z = def.z, sx = 60, sy = 12, sz = 26, ry = 0 })
+		Plan.solid(node, -8, 0.3, 0, 30, 0.6, 6, 0, { kind = "Surface", material = "WoodPlanks", color = "WoodWet" })
 		for _ = 1, 6 do
-			Plan.piece(node, rng:pick({ "crate_s", "barrel", "crate_l", "rope_coil" }), rng:range(-6, 6), 0, rng:range(-12, 12), rng:range(0, 6), {})
+			Plan.piece(node, rng:pick({ "crate_s", "barrel", "crate_l", "rope_coil" }), 18 + rng:range(-6, 6), 0, rng:range(-6, 6), rng:range(0, 6), {})
 		end
-		Plan.piece(node, "boat_row", 4, -0.4, 10, 0.5, {})
-		Plan.piece(node, "crystal_m", 8, -1, -8, 1, {})
-		Plan.light(node, 8, 3, -8, "CurrentTeal", 24, 1.4, false)
-		Plan.assembly(node, ORIGIN, "hanging_lantern", -4, 12, 0, 0, {})
-		chest(node, def, -2, 0, -10, 0)
+		Plan.piece(node, "fishing_net", 12, 0, 6, 0.5, {})
+		Plan.piece(node, "crystal_m", 26, -1, -4, 1, { tag = "CurrentCrystal" })
+		Plan.light(node, 26, 3, -4, "CurrentTeal", 22, 1.4, false)
+		Plan.assembly(node, ORIGIN, "hanging_lantern", -12, 8.5, 0, 0, {})
+		Plan.assembly(node, ORIGIN, "hanging_lantern", 16, 13, 2, 0, {})
+		chest(node, def, 24, 0, 4, -math.pi / 2)
 	elseif def.kind == "Chapel" then
 		-- a rock islet with a half-drowned chapel and its fallen bell
 		table.insert(carves, { op = "Fill", shape = "Ball", material = "Rock", x = def.x, y = def.y - 26, z = def.z, sx = 70, sy = 54, sz = 62, ry = 0 })

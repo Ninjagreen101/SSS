@@ -82,12 +82,28 @@ local function guildHall(def: LandmarkDef, rng: Rng): PlanNode
 			Plan.piece(node, "buttress_h24", sx * 32.6, 4, k * 12, if sx < 0 then math.pi / 2 else -math.pi / 2, { s = 2, material = "Limestone", color = "StoneLight" })
 		end
 	end
-	-- grand entrance stair and banners
-	Plan.piece(node, "steps_stone_w24", 0, 0, -20 - 1.8 - 4, 0, { s = 1, material = "Granite" })
+	-- classical portico: raised forecourt, six columns, entablature, pediment
+	Plan.solid(node, 0, 2, -28.5, 56, 4, 17, 0, { kind = "Surface", material = "Marble", color = "Marble" })
+	for _, cx in { -22, -14, -6, 6, 14, 22 } do
+		Plan.piece(node, "column_h24", cx, 4, -33, 0, { s = 1.15, material = "Marble", color = "Marble" })
+	end
+	Plan.solid(node, 0, 4 + 27.6 + 1.6, -28.5, 58, 3.2, 17, 0, { kind = "Surface", material = "Limestone", color = "StoneLight" })
+	Plan.piece(node, "runeband_l16", 0, 4 + 27.6 + 0.8, -37.1, 0, { s = 3.6, tag = "RuneGlow" })
+	Plan.piece(node, "gable_r12", 0, 4 + 27.6 + 3.2, -34, 0, { s = 2.4, material = "Limestone", color = "StoneLight" })
+	Plan.piece(node, "window_rose", 0, 4 + 27.6 + 3.2 + 9, -35.2, 0, { s = 0.7 })
+	Plan.piece(node, "pane_rose", 0, 4 + 27.6 + 3.2 + 9, -35.1, 0, { s = 0.7, tag = "WindowGlow" })
+	Plan.piece(node, "sign_board", 0, 4 + 27.6 - 0.6, -37.3, 0, { sx = 6, s = 1.2, text = "Sign.GuildName", material = "Metal", color = "Bronze" })
+	for k = -2, 2 do
+		Plan.piece(node, "steps_stone_w24", k * 12, 0, -41, 0, { sx = 0.5, s = 1, material = "Granite" })
+	end
 	for _, sx in { -1, 1 } do
-		Plan.piece(node, "banner_tall", sx * 14, 46, -21.4, 0, { s = 2, color = "ClothTeal" })
-		Plan.assembly(node, ORIGIN, "statue", sx * 22, 0, -34, 0, { s = 0.9 })
-		Plan.assembly(node, ORIGIN, "street_lantern", sx * 9, 0, -30, if sx < 0 then -math.pi / 2 else math.pi / 2)
+		Plan.piece(node, "banner_tall", sx * 18, 46, -21.4, 0, { s = 2, color = "ClothTeal" })
+		Plan.assembly(node, ORIGIN, "statue", sx * 34, 0, -42, 0, { s = 0.9 })
+		Plan.assembly(node, ORIGIN, "stair_post", sx * 30.5, 0, -46, 0)
+		Plan.piece(node, "pillar_square_h12", sx * 25, 4, -36, 0, { s = 0.45, material = "Basalt", color = "TowerStone" })
+		Plan.piece(node, "cookfire", sx * 25, 9.4, -36, 0, { s = 0.9 })
+		Plan.light(node, sx * 25, 12, -36, "Ember", 24, 1.6, false)
+		Plan.emitter(node, "CampfireFlame", sx * 25, 9.8, -36)
 	end
 	-- gameplay anchors inside the hall
 	Plan.marker(node, "QuestBoard", "guild_quest_board", -20, 4, 10, 0, { Floor = 1 })
@@ -165,7 +181,9 @@ end
 local function lighthouse(def: LandmarkDef, rng: Rng): PlanNode
 	local node = landmarkNode(def, "Atomic")
 	local s = 1.25
-	Plan.solid(node, 0, -3, 0, 8, 24, 24, 0, { kind = "Surface", shape = "Cylinder", material = "Cobblestone", color = "StoneWet", rz = math.pi / 2 })
+	-- foundation drum down to the seabed so the tower stands on the mole's end
+	Plan.solid(node, 0, -20, 0, 42, 26, 26, 0, { kind = "Surface", shape = "Cylinder", material = "Cobblestone", color = "StoneWet", rz = math.pi / 2 })
+	Plan.solid(node, 0, 0.5, 0, 1, 27, 27, 0, { kind = "Surface", shape = "Cylinder", material = "Slate", color = "StoneLight", rz = math.pi / 2 })
 	local base = 1
 	local rings = 6
 	local h = 12 * s

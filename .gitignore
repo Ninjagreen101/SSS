@@ -4,3 +4,4 @@ sourcemap.json
 __pycache__/
 *.pyc
 /build/
+globalTypes.d.luau

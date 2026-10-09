@@ -15,6 +15,7 @@ local Types = require(Shared.Types)
 local Config = require(Shared.Config)
 local WorldFX = require(Shared.Util.WorldFX)
 local AssetManifest = require(Shared.Data.AssetManifest)
+local Strings = require(Shared.Strings)
 
 local KitLibrary = require(script.Parent.KitLibrary)
 local Plan = require(script.Parent.Plan.Plan)
@@ -39,6 +40,36 @@ export type ApplyOptions = {
 }
 
 local PlanApplier = {}
+
+-- Painted lettering (a Strings key) on a sign's front face, and optionally its back.
+local function addSignText(part: BasePart, key: string, bothSides: boolean)
+	local faces: { Enum.NormalId } = if bothSides then { Enum.NormalId.Front, Enum.NormalId.Back } else { Enum.NormalId.Front }
+	for _, face in faces do
+		local gui = Instance.new("SurfaceGui")
+		gui.Face = face
+		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		gui.PixelsPerStud = 40
+		gui.LightInfluence = 1
+		gui.MaxDistance = 140
+		gui.Parent = part
+		local label = Instance.new("TextLabel")
+		label.BackgroundTransparency = 1
+		label.Size = UDim2.fromScale(1, 1)
+		label.Text = Strings.get(key)
+		label.TextScaled = true
+		label.FontFace = Font.new("rbxasset://fonts/families/Merriweather.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+		label.TextColor3 = Palette.Gold
+		label.TextStrokeTransparency = 0.6
+		label.TextStrokeColor3 = Palette.StoneShadow
+		local pad = Instance.new("UIPadding")
+		pad.PaddingLeft = UDim.new(0.06, 0)
+		pad.PaddingRight = UDim.new(0.06, 0)
+		pad.PaddingTop = UDim.new(0.14, 0)
+		pad.PaddingBottom = UDim.new(0.14, 0)
+		pad.Parent = label
+		label.Parent = gui
+	end
+end
 
 local function frameCFrame(f: Frame): CFrame
 	return CFrame.new(f.x, f.y, f.z) * CFrame.Angles(0, f.ry, 0)
@@ -140,6 +171,9 @@ function PlanApplier.apply(root: PlanNode, parent: Instance, opts: ApplyOptions?
 			if built.visual then
 				local v = built.visual :: BasePart
 				v.Name = p.kit
+				if p.text then
+					addSignText(v, p.text, true)
+				end
 				if p.tag then
 					CollectionService:AddTag(v, p.tag)
 					v:SetAttribute("BaseMaterial", v.Material.Name)
@@ -220,6 +254,9 @@ function PlanApplier.apply(root: PlanNode, parent: Instance, opts: ApplyOptions?
 				part.CanCollide = false
 				part.CanQuery = false
 				part.CastShadow = false
+			end
+			if sd.text then
+				addSignText(part, sd.text, false)
 			end
 			if sd.tag then
 				CollectionService:AddTag(part, sd.tag)

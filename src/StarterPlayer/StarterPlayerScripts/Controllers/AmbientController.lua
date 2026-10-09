@@ -191,6 +191,10 @@ type Circler = { body: BasePart, centre: Vector3, radius: number, angle: number,
 local gulls: { Circler } = {}
 local fish: { Circler } = {}
 
+-- fish that patrol up and down a canal segment just under the Current surface
+type Swimmer = { body: BasePart, origin: CFrame, half: number, width: number, t: number, speed: number, lane: number }
+local swimmers: { Swimmer } = {}
+
 local function spawnCirclers()
 	local scale = SettingsController.QualityScale()
 	local circles = CollectionService:GetTagged("GullCircle")
@@ -230,6 +234,61 @@ local function spawnCirclers()
 				})
 			end
 		end
+	end
+end
+
+local swimmerMarkers: { [Instance]: boolean } = {}
+
+-- canal markers stream in and out with their canal, so fish are added per marker
+local function addSwimmers(m: Instance)
+	if not m:IsA("BasePart") or swimmerMarkers[m] then
+		return
+	end
+	swimmerMarkers[m] = true
+	local scale = SettingsController.QualityScale()
+	local length = (m:GetAttribute("Length") :: number?) or 40
+	local width = (m:GetAttribute("Width") :: number?) or 12
+	local count = math.max(1, math.floor(length / 30 * scale + 0.5))
+	for _ = 1, count do
+		local body = makeBody("fish", Vector3.new(0.6, 0.8, 2.6), Palette.CurrentTeal, Enum.Material.Neon)
+		body.Size *= 0.7
+		table.insert(swimmers, {
+			body = body,
+			origin = (m :: BasePart).CFrame,
+			half = length / 2 - 2,
+			width = width,
+			t = rng:range(-1, 1),
+			speed = rng:range(0.08, 0.16) * (if rng:chance(0.5) then 1 else -1),
+			lane = rng:range(-0.35, 0.35),
+		})
+	end
+end
+
+local function spawnSwimmers()
+	for _, m in CollectionService:GetTagged("CanalFlow") do
+		addSwimmers(m)
+	end
+	CollectionService:GetInstanceAddedSignal("CanalFlow"):Connect(addSwimmers)
+end
+
+local function stepSwimmers(dt: number, camPos: Vector3)
+	for _, s in swimmers do
+		local pos = s.origin.Position
+		if (pos - camPos).Magnitude > 300 then
+			s.body.LocalTransparencyModifier = 1
+			continue
+		end
+		s.body.LocalTransparencyModifier = 0
+		s.t += s.speed * dt * 30 / math.max(s.half, 1)
+		if s.t > 1 or s.t < -1 then
+			s.speed = -s.speed
+			s.t = math.clamp(s.t, -1, 1)
+		end
+		local wiggle = math.sin(os.clock() * 6 + s.lane * 10) * 0.25
+		local local_ = Vector3.new(s.t * s.half, -1.2, s.lane * s.width + wiggle)
+		local world = s.origin:PointToWorldSpace(local_)
+		local ahead = s.origin:PointToWorldSpace(local_ + Vector3.new(math.sign(s.speed), 0, 0))
+		s.body.CFrame = CFrame.lookAt(world, ahead)
 	end
 end
 
@@ -322,6 +381,7 @@ function AmbientController.Start()
 	if SettingsController.Get("AmbientLife") ~= false then
 		spawnWalkers()
 		spawnCirclers()
+		spawnSwimmers()
 	end
 	task.spawn(merchantCalls)
 	setAmbience(player:GetAttribute("ZoneAmbience") :: string?)
@@ -337,6 +397,7 @@ function AmbientController.Start()
 		stepWalkers(dt, camPos)
 		stepCirclers(gulls, dt, camPos, true)
 		stepCirclers(fish, dt, camPos, false)
+		stepSwimmers(dt, camPos)
 	end)
 end
 

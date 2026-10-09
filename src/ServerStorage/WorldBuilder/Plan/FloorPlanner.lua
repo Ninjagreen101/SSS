@@ -23,6 +23,8 @@ local PlazaPlanner = require(script.Parent.PlazaPlanner)
 local HiddenPlanner = require(script.Parent.HiddenPlanner)
 local NaturePlanner = require(script.Parent.NaturePlanner)
 local DungeonPlanner = require(script.Parent.DungeonPlanner)
+local PathPolishPlanner = require(script.Parent.PathPolishPlanner)
+local CourtyardPlanner = require(script.Parent.CourtyardPlanner)
 
 type PlanNode = Types.PlanNode
 type FloorDef = Types.FloorDef
@@ -258,6 +260,18 @@ function FloorPlanner.plan(floor: FloorDef): FloorPlan
 		table.insert(log, string.format("district %s: %s buildings", d.id, tostring(dn.attributes.Buildings)))
 	end
 	field:attach(ctx)
+
+	-- 5b. hand-polish of the quest path and signposts, then block courtyards
+	Plan.child(root, PathPolishPlanner.plan(floor, ctx))
+	local yards = Plan.child(root, Plan.node("Courtyards", 0, 0, 0, 0, "Default"))
+	local yardCount = 0
+	for _, d in floor.districts do
+		local yn = CourtyardPlanner.plan(d, ctx, 36)
+		Plan.child(yards, yn)
+		local c = yn.attributes.Count
+		yardCount += if type(c) == "number" then c else 0
+	end
+	table.insert(log, string.format("courtyard vignettes: %d", yardCount))
 
 	-- 6. terraces, quay, waystones
 	Plan.child(root, terraceWalls(floor, field, ctx))

@@ -88,6 +88,21 @@ local World: { [string]: string } = {
 	["Dungeon.NotCleared"] = "The way out is sealed until the Matron falls.",
 
 	["Healing.Pool"] = "The Current mends you",
+
+	["Sign.Guild"] = "Climbers' Guild",
+	["Sign.Harbor"] = "Harbor & Piers",
+	["Sign.Market"] = "Lantern Market",
+	["Sign.Terraces"] = "The Terraces",
+	["Sign.Marsh"] = "Tidepool Marsh",
+	["Sign.Forest"] = "Rustwood",
+	["Sign.Gate"] = "The First Gate",
+	["Sign.Cathedral"] = "Tidewatch Cathedral",
+	["Sign.Lighthouse"] = "Lighthouse",
+	["Sign.Cistern"] = "Old Pumphouse",
+	["Sign.Notices"] = "Climbers Wanted",
+	["Sign.GuildName"] = "THE CLIMBERS' GUILD",
+	["Sign.Tavern"] = "The Brass Anchor",
+	["Sign.Waystone"] = "Waystone",
 }
 
 -- Original call-outs used by market stall keepers and dockhands.

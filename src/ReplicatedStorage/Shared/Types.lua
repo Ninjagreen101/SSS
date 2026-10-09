@@ -46,6 +46,7 @@ export type AssemblyPart = {
 	y: number,
 	z: number,
 	ry: number?,
+	s: number?,
 	material: string?,
 	color: string?,
 }
@@ -93,6 +94,7 @@ export type PiecePlacement = {
 	color: string?,
 	tag: string?,
 	noCollide: boolean?,
+	text: string?, -- Strings key painted on both faces (sign boards)
 }
 
 export type SolidPlacement = {
@@ -112,6 +114,7 @@ export type SolidPlacement = {
 	transparency: number?,
 	tag: string?,
 	name: string?,
+	text: string?, -- Strings key rendered on the front face (signs, notice boards)
 }
 
 export type LightPlacement = {
@@ -191,6 +194,8 @@ export type StreetDef = {
 	main: boolean?,
 	lamps: boolean?,
 	sides: string?, -- "both" (default) | "left" | "right" | "none": which sides get building frontage
+	questPath: boolean?, -- the main quest route: real stairs, guide runes, stair posts
+	signs: { { at: number, key: string, back: string? } }?, -- signposts at polyline points
 }
 
 export type DistrictDef = {
