@@ -1,0 +1,6 @@
+sourcemap.json
+*.rbxl.lock
+*.rbxlx.lock
+__pycache__/
+*.pyc
+/build/

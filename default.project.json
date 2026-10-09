@@ -1,0 +1,76 @@
+{
+  "name": "TheSpire",
+  "syncRules": [
+    {
+      "pattern": "*.md",
+      "use": "text"
+    }
+  ],
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "Shared": {
+        "$path": "src/ReplicatedStorage/Shared"
+      },
+      "Assets": {
+        "$className": "Folder",
+        "Kit": {
+          "$className": "Folder"
+        },
+        "VFX": {
+          "$className": "Folder"
+        },
+        "SFX": {
+          "$className": "Folder"
+        },
+        "Animations": {
+          "$className": "Folder"
+        },
+        "UI": {
+          "$className": "Folder"
+        },
+        "Weapons": {
+          "$className": "Folder"
+        },
+        "Armor": {
+          "$className": "Folder"
+        },
+        "Props": {
+          "$className": "Folder"
+        }
+      }
+    },
+    "ServerScriptService": {
+      "$path": "src/ServerScriptService"
+    },
+    "ServerStorage": {
+      "$path": "src/ServerStorage"
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "$path": "src/StarterPlayer/StarterPlayerScripts"
+      }
+    },
+    "Workspace": {
+      "$properties": {
+        "StreamingEnabled": true,
+        "StreamingTargetRadius": 512,
+        "StreamingMinRadius": 160,
+        "StreamOutBehavior": "Opportunistic",
+        "ModelStreamingBehavior": "Improved"
+      }
+    },
+    "Lighting": {
+      "$properties": {
+        "Technology": "Future",
+        "GlobalShadows": true,
+        "ClockTime": 20.5
+      }
+    },
+    "SoundService": {
+      "$properties": {
+        "RespectFilteringEnabled": true
+      }
+    }
+  }
+}
