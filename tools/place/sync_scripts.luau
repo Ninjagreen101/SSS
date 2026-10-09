@@ -4,7 +4,7 @@
 -- ones are created (with Folders for missing directories). Optionally runs an edit-time tool
 -- afterwards, the way Studio's command bar would.
 --
---   lune run tools/place/sync_scripts.luau <in.rbxl> <out.rbxl> [--courtyards] [--guardian-arena]
+--   lune run tools/place/sync_scripts.luau <in.rbxl> <out.rbxl> [--courtyards] [--guardian-arena] [--npcs]
 --
 -- --courtyards runs Tools.Floor1Courtyards.Apply with the analytic ground (Layout.Height), since
 -- Lune has no voxel engine. Run Floor1Courtyards.Resnap() in Studio afterwards to seat the scenes
@@ -13,6 +13,10 @@
 -- --guardian-arena runs Tools.Floor1GuardianArena (Undo first if it is already built): the arena
 -- template in ServerStorage.GuardianArenas.Brinewarden and the gate markers in
 -- Workspace.Floor1.GuardianGate.
+--
+-- --npcs runs Tools.Floor1Npcs (Undo first if present): the NPC markers and routes in
+-- Workspace.Floor1.Npcs and the quest points in Workspace.Floor1.QuestPoints. It prints the counts
+-- and the position of every marker and point.
 
 local fs = require("@lune/fs")
 local luau = require("@lune/luau")
@@ -22,9 +26,10 @@ local serde = require("@lune/serde")
 local task = require("@lune/task")
 
 local input, output = process.args[1], process.args[2]
-assert(input and output and input ~= output, "usage: sync_scripts.luau <in.rbxl> <out.rbxl> [--courtyards] [--guardian-arena]")
+assert(input and output and input ~= output, "usage: sync_scripts.luau <in.rbxl> <out.rbxl> [--courtyards] [--guardian-arena] [--npcs]")
 local runCourtyards = table.find(process.args, "--courtyards") ~= nil
 local runArena = table.find(process.args, "--guardian-arena") ~= nil
+local runNpcs = table.find(process.args, "--npcs") ~= nil
 
 local game = roblox.deserializePlace(fs.readFile(input))
 local Instance = roblox.Instance
@@ -196,7 +201,7 @@ local function finishPivots(root)
 	return #root:GetDescendants(), parts, lights
 end
 
-local requireModule = if runCourtyards or runArena then makeRuntime() else nil
+local requireModule = if runCourtyards or runArena or runNpcs then makeRuntime() else nil
 local tools = game:GetService("ServerStorage"):FindFirstChild("Tools")
 
 if runCourtyards then
@@ -232,6 +237,35 @@ if runArena then
 	print(string.format("guardian arena: %d instances, %d parts, %d lights", instances, parts, lights))
 	local gi, gp, gl = finishPivots(floor.GuardianGate)
 	print(string.format("guardian gate: %d instances, %d parts, %d lights", gi, gp, gl))
+end
+
+if runNpcs then
+	local Npcs = requireModule(tools.Floor1Npcs)
+	local floor = game:GetService("Workspace"):FindFirstChild("Floor1")
+	if floor:FindFirstChild("Npcs") or floor:FindFirstChild("QuestPoints") then
+		Npcs.Undo()
+	end
+	local counts = Npcs.Apply()
+	print(string.format("npcs: %d markers, %d route points, %d quest points", counts.Npcs, counts.RoutePoints, counts.QuestPoints))
+	local function show(label: string, part)
+		local p = part.CFrame.Position
+		local look = part.CFrame.LookVector
+		local id = part:GetAttribute("NpcId") or part:GetAttribute("PointId") or part.Name
+		local extra = part:GetAttribute("Radius") and (" r=" .. part:GetAttribute("Radius")) or ""
+		print(string.format("  %s %-16s (%8.1f, %6.1f, %8.1f) look (%5.2f, %5.2f)%s", label, id, p.X, p.Y, p.Z, look.X, look.Z, extra))
+	end
+	for _, m in floor.Npcs:GetChildren() do
+		if m:IsA("BasePart") then
+			show("npc  ", m)
+		else
+			for _, rp in m:GetChildren() do
+				show("route", rp)
+			end
+		end
+	end
+	for _, q in floor.QuestPoints:GetChildren() do
+		show("point", q)
+	end
 end
 
 fs.writeFile(output, roblox.serializePlace(game))

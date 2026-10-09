@@ -52,4 +52,27 @@ for sc in d["scenes"]:
     r = 9 * s
     dr.rectangle([cx - r, cz - r, cx + r, cz + r], outline=(255, 210, 80))
     dr.line([cx, cz, cx - sc["lx"] * r * 1.6, cz - sc["lz"] * r * 1.6], fill=(255, 80, 80))  # front = +Z = -LookVector
+# NPC markers (red dots with a facing tick), route points (orange), quest points (cyan circles = Radius)
+try:
+    from PIL import ImageFont
+    font = ImageFont.load_default()
+except Exception:
+    font = None
+for m in d.get("marks", []):
+    cx, cz = (m["x"] - x0) * s, (m["z"] - z0) * s
+    if cx < -50 or cx > W + 50 or cz < -50 or cz > H + 50:
+        continue
+    if m["k"] == "point":
+        r = m["r"] * s
+        dr.ellipse([cx - r, cz - r, cx + r, cz + r], outline=(60, 230, 230))
+        dr.text((cx + 3, cz + 3), m["id"], fill=(60, 230, 230), font=font)
+    elif m["k"] == "route":
+        r = 3
+        dr.ellipse([cx - r, cz - r, cx + r, cz + r], fill=(255, 160, 40))
+        dr.text((cx + 4, cz - 4), m["id"], fill=(255, 160, 40), font=font)
+    else:
+        r = 3 * s
+        dr.ellipse([cx - r, cz - r, cx + r, cz + r], fill=(255, 60, 60))
+        dr.line([cx, cz, cx + m["lx"] * r * 3, cz + m["lz"] * r * 3], fill=(255, 255, 255), width=2)
+        dr.text((cx + r + 2, cz - r), m["id"], fill=(255, 220, 220), font=font)
 img.save(sys.argv[2])

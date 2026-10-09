@@ -1,6 +1,9 @@
 -- Top-down footprints for plot_footprints.py.
 --   lune run tools/place/footprints.luau <place.rbxl> <out.json>              Lowharbor (Workspace)
 --   lune run tools/place/footprints.luau <place.rbxl> <out.json> <Path.To.Model>
+-- Add --all anywhere after the output path to plot the whole floor instead of the Lowharbor window.
+-- When Workspace.Floor1.Npcs / QuestPoints exist their markers are written too (plot_footprints.py
+-- draws them).
 -- With a path (e.g. ServerStorage.GuardianArenas.Brinewarden) every part under that instance is
 -- plotted in its own space, classified as floor / collide / visual / neon / water / barrier / marker.
 local fs = require("@lune/fs")
@@ -10,10 +13,11 @@ local serde = require("@lune/serde")
 local game = roblox.deserializePlace(fs.readFile(process.args[1]))
 local ws = game:GetService("Workspace")
 local out = {}
+local plotAll = table.find(process.args, "--all") ~= nil
 local function add(d, kind, filter)
 	local cf, s = d.CFrame, d.Size
 	local p = cf.Position
-	if filter and (p.X < -900 or p.X > 120 or p.Z < -720 or p.Z > 780) then return end
+	if filter and not plotAll and (p.X < -900 or p.X > 120 or p.Z < -720 or p.Z > 780) then return end
 	if s.X > 400 or s.Z > 400 then return end
 	local function c(x, z, y)
 		local w = cf:PointToWorldSpace(roblox.Vector3.new(x, y or 0, z))
@@ -45,6 +49,9 @@ local function add(d, kind, filter)
 	table.insert(out, { k = kind, y = math.floor(p.Y), pts = { c(-s.X/2, -s.Z/2), c(s.X/2, -s.Z/2), c(s.X/2, s.Z/2), c(-s.X/2, s.Z/2) } })
 end
 local path = process.args[3]
+if path == "--all" then
+	path = nil
+end
 if path then
 	local node = game
 	for name in string.gmatch(path, "[^%.]+") do
@@ -93,5 +100,27 @@ if cy then
 		end
 	end
 end
-fs.writeFile(process.args[2], serde.encode("json", { parts = out, scenes = scenes }))
-print(#out, #scenes)
+local marks = {}
+local floor1 = ws.Floor1
+local function mark(kind, d, label, radius)
+	local cf = d.CFrame
+	table.insert(marks, { k = kind, id = label, x = cf.Position.X, z = cf.Position.Z, lx = cf.LookVector.X, lz = cf.LookVector.Z, r = radius })
+end
+if floor1:FindFirstChild("Npcs") then
+	for _, m in floor1.Npcs:GetChildren() do
+		if m:IsA("BasePart") then
+			mark("npc", m, m:GetAttribute("NpcId"), 3)
+		else
+			for _, rp in m:GetChildren() do
+				mark("route", rp, rp.Name, 2)
+			end
+		end
+	end
+end
+if floor1:FindFirstChild("QuestPoints") then
+	for _, q in floor1.QuestPoints:GetChildren() do
+		mark("point", q, q:GetAttribute("PointId"), q:GetAttribute("Radius"))
+	end
+end
+fs.writeFile(process.args[2], serde.encode("json", { parts = out, scenes = scenes, marks = marks }))
+print(#out, #scenes, #marks)
