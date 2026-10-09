@@ -44,6 +44,10 @@ local ORDER = {
 	"ArtController",
 	"ArtVFXController",
 	"BeaconController",
+	-- Guardian fights (Phase 10): telegraphs, music layers, then the fight UI that uses them.
+	"TelegraphController",
+	"MusicController",
+	"GuardianController",
 	-- Character window tabs, in tab order (the menu hub lists them this way).
 	"CharacterSheetController",
 	"InventoryController",

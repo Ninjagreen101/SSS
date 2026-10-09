@@ -248,6 +248,40 @@ local UITheme = {
 		InfoOffset = Vector3.new(0, 3.4, 0),
 	},
 
+	-- Ground telegraphs (TelegraphController): an outline at full size and a fill that grows
+	-- until the attack lands, then a short flash. Unparryable attacks burn a deeper ember red.
+	Telegraph = {
+		Color = Colors.Danger,
+		Unparryable = hex("#B3170C"),
+		Ember = hex("#FF7A2E"),
+		Flash = hex("#FFD9CC"),
+		OutlineTransparency = 0.8,
+		RimTransparency = 0.25,
+		FillTransparency = 0.5,
+		RimWidth = 0.35, -- studs
+		WaveWidth = 2.6, -- studs: the travelling front of a ring wave
+		FlashTime = 0.28,
+		PulsePeriod = 0.4,
+		Lift = 0.06, -- studs above the floor
+	},
+
+	-- Guardian fights (GuardianController): boss bar, cinematic cards, the unparryable glint.
+	Guardian = {
+		BarWidth = 560,
+		BarBottom = 118, -- clears the spell bar
+		HealthHeight = 14,
+		PostureHeight = 5,
+		PipSize = 10,
+		Letterbox = 0.11, -- of the screen height, top and bottom
+		NameSize = 72,
+		CardTitleSize = 56,
+		Glint = hex("#FF6A2A"),
+		GlintSize = 5, -- studs
+		GlintTime = 0.45,
+		HighTide = Colors.Current,
+		EbbTide = hex("#E0B872"),
+	},
+
 	-- Death screen (Phase 2).
 	Death = {
 		Saturation = -1,

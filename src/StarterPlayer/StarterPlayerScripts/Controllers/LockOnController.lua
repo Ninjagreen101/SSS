@@ -12,7 +12,14 @@
 	  next enemy in that direction (on screen) is chosen.
 	- The lock breaks when the target dies, leaves, or gets too far away.
 	- A marker shows the target: a reticle at its centre and, above it, its
-	  name, health and posture (balance) bars.
+	  name, health and posture (balance) bars (Floor Guardians skip the bars;
+	  their boss bar shows them).
+	- Lock points: big targets carry Attachments named "LockPoint" (attribute
+	  Enabled ~= false). The reticle, the camera and your facing aim at the
+	  chosen point. A switch flick first moves to the next enabled point in
+	  that direction on screen (points ordered left to right), and only past
+	  the last one moves on to the next target. A point that is disabled
+	  while chosen hands over to the nearest enabled one.
 ]]
 
 local CollectionService = game:GetService("CollectionService")
@@ -39,6 +46,8 @@ local CameraController = require(script.Parent.CameraController)
 local CharacterController = require(script.Parent.CharacterController)
 
 local A = Attributes.Names
+local LOCK_POINT = "LockPoint"
+local SCREEN_EPSILON = 2 -- pixels: points closer than this on screen count as the same column
 local L = Config.Camera.LockOn
 local M = UITheme.LockOn
 local player = Players.LocalPlayer
@@ -46,6 +55,9 @@ local player = Players.LocalPlayer
 local LockOnController = {}
 
 local target: Model? = nil
+local lockPoint: Attachment? = nil
+local points: { Attachment } = {} -- every LockPoint on the target, enabled or not
+local reticleGui: BillboardGui? = nil
 local markerMaid = Maid.new()
 local lastSwitch = 0
 local stickArmed = true -- the right stick must return to centre between flicks
@@ -93,6 +105,112 @@ local function candidates(): { { Model: Model, Angle: number, Distance: number }
 	return list
 end
 
+-- LOCK POINTS ------------------------------------------------------------------
+
+local function pointEnabled(point: Attachment): boolean
+	return point.Parent ~= nil and point:GetAttribute(A.Enabled) ~= false
+end
+
+local function enabledPoints(): { Attachment }
+	local list = {}
+	for _, point in points do
+		if pointEnabled(point) then
+			table.insert(list, point)
+		end
+	end
+	return list
+end
+
+local function collectPoints(model: Model)
+	table.clear(points)
+	for _, descendant in model:GetDescendants() do
+		if descendant:IsA("Attachment") and descendant.Name == LOCK_POINT then
+			table.insert(points, descendant)
+		end
+	end
+end
+
+-- Where the lock aims: the chosen point, or the target's root.
+local function aimPosition(model: Model): Vector3?
+	local point = lockPoint
+	if point and pointEnabled(point) then
+		return point.WorldPosition
+	end
+	local root = rootOf(model)
+	return if root then root.Position else nil
+end
+
+local function setPoint(point: Attachment?)
+	lockPoint = point
+	local gui = reticleGui
+	local current = target
+	if gui and current then
+		local adornee: Instance? = point or rootOf(current)
+		if adornee then
+			gui.Adornee = adornee
+		end
+	end
+end
+
+-- The enabled point nearest the centre of the view (a fresh lock starts there).
+local function centredPoint(): Attachment?
+	local camera = Workspace.CurrentCamera
+	if not camera then
+		return nil
+	end
+	local best: Attachment? = nil
+	local bestAngle = math.huge
+	local look = camera.CFrame.LookVector
+	for _, point in enabledPoints() do
+		local offset = point.WorldPosition - camera.CFrame.Position
+		if offset.Magnitude > 0 then
+			local angle = math.acos(math.clamp(look:Dot(offset.Unit), -1, 1))
+			if angle < bestAngle then
+				best = point
+				bestAngle = angle
+			end
+		end
+	end
+	return best
+end
+
+-- The enabled point furthest toward one side of the screen (-1 left edge, +1 right edge).
+local function edgePoint(side: number): Attachment?
+	local camera = Workspace.CurrentCamera
+	if not camera then
+		return nil
+	end
+	local best: Attachment? = nil
+	local bestX = -math.huge
+	for _, point in enabledPoints() do
+		local screen = camera:WorldToViewportPoint(point.WorldPosition)
+		if screen.Z > 0 and screen.X * side > bestX then
+			best = point
+			bestX = screen.X * side
+		end
+	end
+	return best
+end
+
+-- Replaces a chosen point that was disabled or removed with the nearest enabled one.
+local function revalidatePoint()
+	local point = lockPoint
+	if point == nil or pointEnabled(point) then
+		return
+	end
+	local from = point.WorldPosition
+	local best: Attachment? = nil
+	local bestDistance = math.huge
+	for _, other in enabledPoints() do
+		local distance = (other.WorldPosition - from).Magnitude
+		if distance < bestDistance then
+			best = other
+			bestDistance = distance
+		end
+	end
+	setPoint(best)
+end
+
 -- MARKER ---------------------------------------------------------------------
 
 local function buildMarker(model: Model)
@@ -103,16 +221,22 @@ local function buildMarker(model: Model)
 	end
 	local playerGui = player:WaitForChild("PlayerGui")
 
-	-- Reticle: a slowly turning diamond at the target's centre.
-	local reticleGui: BillboardGui = Create.new("BillboardGui", {
+	-- Reticle: a slowly turning diamond at the target's centre (or its lock point).
+	local reticle: BillboardGui = Create.new("BillboardGui", {
 		Name = "LockOnReticle",
-		Adornee = root,
+		Adornee = lockPoint or root,
 		AlwaysOnTop = true,
 		LightInfluence = 0,
 		ResetOnSpawn = false,
 		Size = UDim2.fromOffset(M.ReticleSize, M.ReticleSize),
 	})
-	markerMaid:Add(reticleGui)
+	markerMaid:Add(reticle)
+	reticleGui = reticle
+	markerMaid:Add(function()
+		if reticleGui == reticle then
+			reticleGui = nil
+		end
+	end)
 	local diamond: Frame = Create.new("Frame", {
 		Name = "Diamond",
 		AnchorPoint = Vector2.new(0.5, 0.5),
@@ -120,7 +244,7 @@ local function buildMarker(model: Model)
 		Size = UDim2.fromScale(0.6, 0.6),
 		BackgroundTransparency = 1,
 		Rotation = 45,
-		Parent = reticleGui,
+		Parent = reticle,
 	})
 	Create.Stroke(diamond, UITheme.Colors.Current, 2, 0)
 	local dot: Frame = Create.new("Frame", {
@@ -129,12 +253,35 @@ local function buildMarker(model: Model)
 		Position = UDim2.fromScale(0.5, 0.5),
 		Size = UDim2.fromOffset(4, 4),
 		BackgroundColor3 = UITheme.Colors.Current,
-		Parent = reticleGui,
+		Parent = reticle,
 	})
 	Create.Corner(dot, UITheme.CornerPill)
 	markerMaid:Add(Animator.Add(function(time: number)
 		diamond.Rotation = 45 + time * 40
 	end))
+
+	-- Lock points appear and disappear with the body (a Guardian's core in its last phase).
+	markerMaid:Add(model.DescendantAdded:Connect(function(descendant: Instance)
+		if descendant:IsA("Attachment") and descendant.Name == LOCK_POINT and not table.find(points, descendant) then
+			table.insert(points, descendant)
+		end
+	end))
+	markerMaid:Add(model.DescendantRemoving:Connect(function(descendant: Instance)
+		if descendant:IsA("Attachment") then
+			local index = table.find(points, descendant)
+			if index then
+				table.remove(points, index)
+			end
+			if descendant == lockPoint then
+				lockPoint = nil
+				setPoint(centredPoint())
+			end
+		end
+	end))
+	reticle.Parent = playerGui
+	if CollectionService:HasTag(model, Attributes.Tags.Guardian) then
+		return
+	end
 
 	-- Info above the head: name, health, posture.
 	local infoGui: BillboardGui = Create.new("BillboardGui", {
@@ -214,15 +361,19 @@ local function buildMarker(model: Model)
 		refreshPosture()
 	end))
 
-	reticleGui.Parent = playerGui
 	infoGui.Parent = playerGui
 end
 
 -- LOCKING ----------------------------------------------------------------------
 
-local function setTarget(model: Model?)
+-- `entrySide` (+1 / -1): arriving from a switch in that direction starts on the near edge's point.
+local function setTarget(model: Model?, entrySide: number?)
 	target = model
+	lockPoint = nil
+	table.clear(points)
 	if model then
+		collectPoints(model)
+		lockPoint = if entrySide then edgePoint(-entrySide) else centredPoint()
 		buildMarker(model)
 	else
 		markerMaid:Clean()
@@ -252,11 +403,36 @@ local function switch(side: number)
 	if not current or not camera or os.clock() - lastSwitch < L.SwitchCooldown then
 		return
 	end
+	local currentAim = aimPosition(current)
+	if not currentAim then
+		return
+	end
+	local currentScreen = camera:WorldToViewportPoint(currentAim)
+
+	-- First the target's own lock points, left to right on screen.
+	local bestPoint: Attachment? = nil
+	local bestPointDelta = math.huge
+	for _, point in enabledPoints() do
+		if point ~= lockPoint then
+			local screen = camera:WorldToViewportPoint(point.WorldPosition)
+			local delta = (screen.X - currentScreen.X) * side
+			if screen.Z > 0 and delta > SCREEN_EPSILON and delta < bestPointDelta then
+				bestPoint = point
+				bestPointDelta = delta
+			end
+		end
+	end
+	if bestPoint then
+		lastSwitch = os.clock()
+		setPoint(bestPoint)
+		return
+	end
+
 	local currentRoot = rootOf(current)
 	if not currentRoot then
 		return
 	end
-	local currentScreen = camera:WorldToViewportPoint(currentRoot.Position)
+	currentScreen = camera:WorldToViewportPoint(currentRoot.Position)
 	local best: Model? = nil
 	local bestDelta = math.huge
 	for _, candidate in candidates() do
@@ -272,7 +448,7 @@ local function switch(side: number)
 	end
 	if best then
 		lastSwitch = os.clock()
-		setTarget(best)
+		setTarget(best, side)
 	end
 end
 
@@ -298,8 +474,10 @@ local function step()
 		setTarget(nil)
 		return
 	end
-	CameraController.SetTargetLook(targetRoot.Position)
-	CharacterController.SetLockTarget(targetRoot.Position)
+	revalidatePoint()
+	local aim = aimPosition(current) or targetRoot.Position
+	CameraController.SetTargetLook(aim)
+	CharacterController.SetLockTarget(aim)
 
 	-- Mouse flick to switch.
 	if UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter then

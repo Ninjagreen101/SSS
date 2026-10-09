@@ -10,8 +10,12 @@
 	- Blows: when the MobBlow attribute changes, the attack animation is
 	  played stretched so its moment of contact lands exactly when the
 	  server checks the hit. The first blow of a move shows the red
-	  telegraph glow until contact.
+	  telegraph glow until contact. Unparryable blows (telegraph 2) also
+	  flash an ember-red glint on the weapon or claw and play a warning
+	  sound (Deepwoken-style red tell).
 	- Hit stun and posture breaks play the Hurt / Broken animations.
+	- Floor Guardians (tag Guardian) get no nameplate (GuardianController
+	  draws a boss bar) and their dissolve waits out the victory slow-motion.
 	- Nameplate: level, name and health bar over mobs within
 	  Mobs.Visual.HealthBarDistance once they're fighting or hurt (hidden on
 	  the mob you're locked on to, which has its own marker). Elites are gold.
@@ -27,6 +31,7 @@
 ]]
 
 local CollectionService = game:GetService("CollectionService")
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -39,12 +44,16 @@ local Strings = require(Shared.Strings)
 local Mobs = require(Shared.Data.Mobs)
 local Spells = require(Shared.Data.Spells)
 local Maid = require(Shared.Util.Maid)
+local TweenUtil = require(Shared.Util.TweenUtil)
 
 local UI = script.Parent.Parent.UI
 local UITheme = require(UI.UITheme)
 local Create = require(UI.Create)
+local Icons = require(UI.Icons)
+local Motion = require(UI.Motion)
 
 local LockOnController = require(script.Parent.LockOnController)
+local DataController = require(script.Parent.DataController)
 
 local A = Attributes.Names
 local VISUAL = Config.Mobs.Visual
@@ -72,6 +81,7 @@ type Visual = {
 	Hidden: boolean,
 	BaseTransparency: { [BasePart]: number },
 	Empower: Highlight?, -- warm glow while a Lantern Acolyte's Kindle lasts
+	GlintPart: BasePart?, -- where the unparryable glint shows (blade, claw or head)
 }
 
 local visuals: { [Model]: Visual } = {}
@@ -93,6 +103,22 @@ local STATUS_ELEMENT: { [string]: string } = {
 	Renewing = "Bloom",
 }
 local FIGHTING = { Alert = true, Chase = true, Attack = true, Recover = true, Staggered = true, Broken = true }
+
+-- The unparryable tell: a pooled ember sparkle (billboard) and a pooled positional warning sound.
+-- The sound borrows the UIError ping, pitched down, until the audio pass adds a dedicated one.
+local GLINT_POOL = 4
+local GLINT_SOUND = Config.Assets.Sounds.UIError
+local GLINT_SOUND_PITCH = 0.5
+local GLINT_SOUND_VOLUME = 0.9
+local G = UITheme.Guardian
+
+type Glint = { Gui: BillboardGui, Star: ImageLabel, Halo: ImageLabel, Scale: UIScale, Busy: number }
+type GlintSound = { Attachment: Attachment, Sound: Sound }
+
+local glints: { Glint } = {}
+local glintSounds: { GlintSound } = {}
+local glintCursor = 1
+local soundCursor = 1
 
 local function now(): number
 	return Workspace:GetServerTimeNow()
@@ -170,6 +196,121 @@ local function setGlow(visual: Visual, on: boolean)
 	end
 end
 
+-- UNPARRYABLE GLINT -----------------------------------------------------------
+
+local function isGuardian(model: Model): boolean
+	return CollectionService:HasTag(model, Attributes.Tags.Guardian)
+end
+
+local function buildGlints()
+	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+	for index = 1, GLINT_POOL do
+		local gui: BillboardGui = Create.new("BillboardGui", {
+			Name = `UnparryableGlint{index}`,
+			AlwaysOnTop = true,
+			LightInfluence = 0,
+			ResetOnSpawn = false,
+			Size = UDim2.fromScale(G.GlintSize, G.GlintSize),
+			Enabled = false,
+			Parent = playerGui,
+		})
+		local scale: UIScale = Create.new("UIScale", { Parent = gui })
+		local halo = Icons.Fx("Glow", {
+			Name = "Halo",
+			Size = UDim2.fromScale(1, 1),
+			Color = G.Glint,
+			Transparency = 1,
+			Parent = gui,
+		})
+		local star = Icons.Fx("Sparkle", {
+			Name = "Star",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromScale(0.8, 0.8),
+			Color = UITheme.Telegraph.Flash:Lerp(G.Glint, 0.35),
+			Transparency = 1,
+			ZIndex = 2,
+			Parent = gui,
+		})
+		glints[index] = { Gui = gui, Star = star, Halo = halo, Scale = scale, Busy = 0 }
+
+		local attachment = Instance.new("Attachment")
+		attachment.Name = `UnparryableSound{index}`
+		attachment.Parent = Workspace.Terrain
+		local sound = Instance.new("Sound")
+		sound.SoundId = GLINT_SOUND.Id
+		sound.PlaybackSpeed = GLINT_SOUND_PITCH
+		sound.RollOffMinDistance = 20
+		sound.RollOffMaxDistance = 220
+		sound.Parent = attachment
+		glintSounds[index] = { Attachment = attachment, Sound = sound }
+	end
+end
+
+local function glintPart(visual: Visual): BasePart
+	local cached = visual.GlintPart
+	if cached and cached.Parent then
+		return cached
+	end
+	local model = visual.Model
+	local weapon = model:FindFirstChild("SpireWeapon")
+	local found = weapon and weapon:FindFirstChild("Blade", true)
+	if not (found and found:IsA("BasePart")) then
+		found = model:FindFirstChild("Claw", true)
+	end
+	if not (found and found:IsA("BasePart")) then
+		found = model:FindFirstChild("RightHand")
+	end
+	local part: BasePart = if found and found:IsA("BasePart") then found else visual.Root
+	visual.GlintPart = part
+	return part
+end
+
+local function setting(key: string, fallback: number): number
+	local value = DataController.GetSetting(key)
+	return if type(value) == "number" then value else fallback
+end
+
+local function playGlint(visual: Visual)
+	local part = glintPart(visual)
+	local glint = glints[glintCursor]
+	glintCursor = glintCursor % GLINT_POOL + 1
+	if glint then
+		local token = glint.Busy + 1
+		glint.Busy = token
+		glint.Gui.Adornee = part
+		glint.Gui.Enabled = true
+		local reduced = Motion.IsReduced()
+		local time = G.GlintTime
+		glint.Star.ImageTransparency = 0
+		glint.Halo.ImageTransparency = 0.25
+		glint.Star.Rotation = 0
+		glint.Scale.Scale = if reduced then 1 else 0.3
+		if not reduced then
+			TweenUtil.Play(glint.Scale, time * 0.35, { Scale = 1.15 }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+			TweenUtil.Play(glint.Star, time, { Rotation = 90 }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		end
+		TweenUtil.PlayInfo(glint.Star, TweenInfo.new(time * 0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.In, 0, false, time * 0.4), { ImageTransparency = 1 })
+		TweenUtil.PlayInfo(glint.Halo, TweenInfo.new(time * 0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.In, 0, false, time * 0.4), { ImageTransparency = 1 })
+		task.delay(time + 0.05, function()
+			if glint.Busy == token then
+				glint.Gui.Enabled = false
+			end
+		end)
+	end
+	local entry = glintSounds[soundCursor]
+	soundCursor = soundCursor % GLINT_POOL + 1
+	if entry then
+		local volume = math.clamp(setting("SfxVolume", 0.9), 0, 1) * math.clamp(setting("MasterVolume", 0.8), 0, 1)
+		if volume > 0 then
+			entry.Attachment.WorldPosition = part.Position
+			entry.Sound.Volume = GLINT_SOUND_VOLUME * volume
+			entry.Sound.TimePosition = 0
+			entry.Sound:Play()
+		end
+	end
+end
+
 -- LOCOMOTION -------------------------------------------------------------------
 
 local function updateLocomotion(visual: Visual)
@@ -211,12 +352,17 @@ local function onBlow(visual: Visual)
 	local slot = parts[1]
 	local windup = tonumber(parts[2]) or 0
 	local startedAt = tonumber(parts[3]) or now()
-	local telegraph = parts[4] == "1"
+	-- Telegraph 1 = warning glow, 2 = unparryable (the glow plus the ember glint and sound).
+	local unparryable = parts[4] == "2"
+	local telegraph = parts[4] == "1" or unparryable
 	local remaining = math.max(0.03, windup - (now() - startedAt))
 
 	if telegraph then
 		visual.HighlightUntil = os.clock() + remaining
 		setGlow(visual, true)
+	end
+	if unparryable and visual.Animating then
+		playGlint(visual)
 	end
 	if not visual.Animating then
 		return
@@ -353,6 +499,13 @@ local function dissolve(visual: Visual)
 		visual.Empower = nil
 	end
 	setGlow(visual, false)
+	if isGuardian(visual.Model) then
+		-- The victory moment slows these tracks (GuardianController); let it play out first.
+		task.wait(Config.Mobs.Guardian.VictorySlowMo)
+		if not visual.Model.Parent then
+			return
+		end
+	end
 	stopAll(visual, 0.2)
 	local info = TweenInfo.new(VISUAL.DissolveDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 	for _, item in visual.Model:GetDescendants() do
@@ -412,6 +565,7 @@ local function bind(instance: Instance)
 		Hidden = false,
 		BaseTransparency = {},
 		Empower = nil,
+		GlintPart = nil,
 	}
 	if visual.Stealth then
 		for _, d in model:GetDescendants() do
@@ -526,6 +680,7 @@ local function update()
 			end
 			visual.Plate.Enabled = model ~= locked
 				and not visual.Hidden
+				and not isGuardian(model)
 				and distance <= VISUAL.HealthBarDistance
 				and (hurt or (type(state) == "string" and FIGHTING[state] == true))
 		end
@@ -533,6 +688,7 @@ local function update()
 end
 
 function MobController.Start()
+	buildGlints()
 	for _, model in CollectionService:GetTagged(Attributes.Tags.Mob) do
 		task.spawn(bind, model)
 	end

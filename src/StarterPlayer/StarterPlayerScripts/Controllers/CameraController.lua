@@ -20,6 +20,8 @@
 	- While the mouse is locked, a small reticle marks the screen centre
 	  (where the hidden cursor is), like a shift-lock cursor.
 	Lock-on (Phase 3) will steer yaw/pitch through SetTargetLook().
+	- SetCinematic(source, blend): scripted shots (Guardian intros and
+	  victories) take the camera; releasing blends back to the gameplay view.
 ]]
 
 local Players = game:GetService("Players")
@@ -75,6 +77,11 @@ local humanoid: Humanoid? = nil
 local root: BasePart? = nil
 local lookOverride: Vector3? = nil
 local reticle: Frame? = nil
+local cinematic: ((dt: number) -> (CFrame, number))? = nil
+local cinematicLast: CFrame? = nil
+local cinematicFov = C.FieldOfView
+local blendTotal = 0
+local blendLeft = 0
 
 local raycastParams = RaycastParams.new()
 raycastParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -240,6 +247,23 @@ function CameraController.SetTargetLook(point: Vector3?)
 	lookOverride = point
 end
 
+-- Scripted camera: while set, `source(dt)` returns the camera CFrame and field of view each
+-- frame and look input is ignored. nil hands the camera back, blending from the last scripted
+-- frame to the gameplay view over `blend` seconds.
+function CameraController.SetCinematic(source: ((dt: number) -> (CFrame, number))?, blend: number?)
+	local previous = cinematic
+	cinematic = source
+	blendLeft = 0
+	if source == nil and previous ~= nil and cinematicLast ~= nil then
+		blendTotal = math.max(0, blend or 0)
+		blendLeft = blendTotal
+	end
+end
+
+function CameraController.IsCinematic(): boolean
+	return cinematic ~= nil
+end
+
 -- STEP -----------------------------------------------------------------------
 
 local function step(dt: number)
@@ -251,6 +275,17 @@ local function step(dt: number)
 		camera.CameraType = Enum.CameraType.Scriptable
 	end
 	updateMouse()
+
+	local source = cinematic
+	if source then
+		local shot, shotFov = source(dt)
+		cinematicLast = shot
+		cinematicFov = shotFov
+		camera.CFrame = shot
+		camera.Focus = shot
+		camera.FieldOfView = shotFov
+		return
+	end
 
 	-- Look input.
 	if gameplayActive() then
@@ -346,6 +381,16 @@ local function step(dt: number)
 	fov = MathUtil.ExpDecay(fov, targetFov, C.FovSpeed, dt)
 	punch = MathUtil.ExpDecay(punch, 0, C.PunchRecovery, dt)
 	camera.FieldOfView = fov + punch
+
+	-- Hand-back from a scripted shot: ease from its last frame into the gameplay view.
+	local last = cinematicLast
+	if blendLeft > 0 and last then
+		blendLeft = math.max(0, blendLeft - dt)
+		local alpha = if blendTotal > 0 then 1 - blendLeft / blendTotal else 1
+		local eased = alpha * alpha * (3 - 2 * alpha)
+		camera.CFrame = last:Lerp(camera.CFrame, eased)
+		camera.FieldOfView = cinematicFov + (camera.FieldOfView - cinematicFov) * eased
+	end
 
 	-- Fade the character when the camera is jammed against it.
 	local closeness = (position - newFocus).Magnitude

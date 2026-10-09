@@ -824,6 +824,7 @@ local Strings = {
 		ArenaBusy = "The Gate cannot open right now. Try again in a moment.",
 		BelowLevel = "The Brinewarden is level {level}. Prepare well, Climber.",
 		SkipIntro = "Press {key} to skip",
+		SkipIntroTouch = "Tap to skip",
 
 		BossLevel = "Lv {level}",
 		Tide = {

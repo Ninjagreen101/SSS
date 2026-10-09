@@ -19,6 +19,7 @@
 	- Ambience: the region under the player (ReplicatedStorage.FloorData.Regions grid) picks a
 	  day or night sound bed, cross-faded; gulls call over the harbour by day; waterfalls (tag
 	  SpireWaterfall) get a positional loop; the market bell tolls at dawn and dusk.
+	  SetAmbienceDuck lowers every bed while music carries the scene (MusicController).
 ]]
 
 local CollectionService = game:GetService("CollectionService")
@@ -562,6 +563,15 @@ local function fadeTo(sound: Sound, volume: number)
 			end
 		end)
 	end
+end
+
+-- Lowers the whole ambience group by `fraction` (0 = full volume, 1 = silent), faded.
+function EnvironmentController.SetAmbienceDuck(fraction: number)
+	if not bedGroup then
+		return
+	end
+	local goal = 1 - math.clamp(fraction, 0, 1)
+	TweenService:Create(bedGroup, TweenInfo.new(ENV.Music.CrossfadeSeconds), { Volume = goal }):Play()
 end
 
 local function stepAmbience(hour: number, mix: WeatherMix)
