@@ -4,11 +4,15 @@
 -- ones are created (with Folders for missing directories). Optionally runs an edit-time tool
 -- afterwards, the way Studio's command bar would.
 --
---   lune run tools/place/sync_scripts.luau <in.rbxl> <out.rbxl> [--courtyards]
+--   lune run tools/place/sync_scripts.luau <in.rbxl> <out.rbxl> [--courtyards] [--guardian-arena]
 --
 -- --courtyards runs Tools.Floor1Courtyards.Apply with the analytic ground (Layout.Height), since
 -- Lune has no voxel engine. Run Floor1Courtyards.Resnap() in Studio afterwards to seat the scenes
 -- on the voxel surface.
+--
+-- --guardian-arena runs Tools.Floor1GuardianArena (Undo first if it is already built): the arena
+-- template in ServerStorage.GuardianArenas.Brinewarden and the gate markers in
+-- Workspace.Floor1.GuardianGate.
 
 local fs = require("@lune/fs")
 local luau = require("@lune/luau")
@@ -18,8 +22,9 @@ local serde = require("@lune/serde")
 local task = require("@lune/task")
 
 local input, output = process.args[1], process.args[2]
-assert(input and output and input ~= output, "usage: sync_scripts.luau <in.rbxl> <out.rbxl> [--courtyards]")
+assert(input and output and input ~= output, "usage: sync_scripts.luau <in.rbxl> <out.rbxl> [--courtyards] [--guardian-arena]")
 local runCourtyards = table.find(process.args, "--courtyards") ~= nil
+local runArena = table.find(process.args, "--guardian-arena") ~= nil
 
 local game = roblox.deserializePlace(fs.readFile(input))
 local Instance = roblox.Instance
@@ -104,8 +109,8 @@ for _, root in ROOTS do
 end
 print(string.format("scripts: %d updated, %d created", updated, created))
 
-if runCourtyards then
-	-- A minimal module runtime for edit-time tools (Studio services Lune leaves to the host).
+-- A minimal module runtime for edit-time tools (Studio services Lune leaves to the host).
+local function makeRuntime()
 	roblox.implementMethod("Instance", "WaitForChild", function(self, name)
 		local child = self:FindFirstChild(name)
 		assert(child, "WaitForChild: " .. self:GetFullName() .. "." .. tostring(name) .. " missing")
@@ -114,6 +119,9 @@ if runCourtyards then
 	local CollectionFacade = {}
 	function CollectionFacade:AddTag(inst, tag)
 		inst:AddTag(tag)
+	end
+	function CollectionFacade:RemoveTag(inst, tag)
+		inst:RemoveTag(tag)
 	end
 	function CollectionFacade:HasTag(inst, tag)
 		return inst:HasTag(tag)
@@ -152,6 +160,13 @@ if runCourtyards then
 			Vector2 = roblox.Vector2,
 			CFrame = roblox.CFrame,
 			Color3 = roblox.Color3,
+			ColorSequence = roblox.ColorSequence,
+			ColorSequenceKeypoint = roblox.ColorSequenceKeypoint,
+			NumberSequence = roblox.NumberSequence,
+			NumberSequenceKeypoint = roblox.NumberSequenceKeypoint,
+			NumberRange = roblox.NumberRange,
+			UDim = roblox.UDim,
+			UDim2 = roblox.UDim2,
 			Enum = roblox.Enum,
 			task = task,
 		}, { __index = _G })
@@ -159,17 +174,12 @@ if runCourtyards then
 		cache[ms] = result
 		return result
 	end
+	return requireModule
+end
 
-	local tools = game:GetService("ServerStorage"):FindFirstChild("Tools")
-	local Layout = requireModule(tools.Layouts.Floor1)
-	local Courtyards = requireModule(tools.Floor1Courtyards)
-	local floor = game:GetService("Workspace"):FindFirstChild("Floor1")
-	if floor and floor:FindFirstChild("Courtyards") then
-		Courtyards.Undo()
-	end
-	local counts = Courtyards.Apply({ Ground = Layout.Height })
-	local root = floor:FindFirstChild("Courtyards")
-	-- Lune keeps WorldPivot in memory only; the file format stores it as WorldPivotData
+-- Lune keeps WorldPivot in memory only; the file format stores it as WorldPivotData. Returns the
+-- instance, part and light counts under `root`.
+local function finishPivots(root)
 	local parts, lights = 0, 0
 	for _, d in root:GetDescendants() do
 		if d:IsA("Model") then
@@ -180,13 +190,48 @@ if runCourtyards then
 			lights += 1
 		end
 	end
+	if root:IsA("Model") then
+		root.WorldPivotData = root.WorldPivot
+	end
+	return #root:GetDescendants(), parts, lights
+end
+
+local requireModule = if runCourtyards or runArena then makeRuntime() else nil
+local tools = game:GetService("ServerStorage"):FindFirstChild("Tools")
+
+if runCourtyards then
+	local Layout = requireModule(tools.Layouts.Floor1)
+	local Courtyards = requireModule(tools.Floor1Courtyards)
+	local floor = game:GetService("Workspace"):FindFirstChild("Floor1")
+	if floor and floor:FindFirstChild("Courtyards") then
+		Courtyards.Undo()
+	end
+	local counts = Courtyards.Apply({ Ground = Layout.Height })
+	local root = floor:FindFirstChild("Courtyards")
+	local instances, parts, lights = finishPivots(root)
 	local kinds = {}
 	for k, v in counts do
 		table.insert(kinds, k .. "=" .. v)
 	end
 	table.sort(kinds)
 	print("courtyards: " .. table.concat(kinds, " "))
-	print(string.format("courtyards: %d instances, %d parts, %d lights", #root:GetDescendants(), parts, lights))
+	print(string.format("courtyards: %d instances, %d parts, %d lights", instances, parts, lights))
+end
+
+if runArena then
+	local Arena = requireModule(tools.Floor1GuardianArena)
+	local storage = game:GetService("ServerStorage")
+	local floor = game:GetService("Workspace"):FindFirstChild("Floor1")
+	local arenas = storage:FindFirstChild("GuardianArenas")
+	if (arenas and arenas:FindFirstChild("Brinewarden")) or (floor and floor:FindFirstChild("GuardianGate")) then
+		Arena.Undo()
+	end
+	Arena.Apply()
+	local template = storage.GuardianArenas.Brinewarden
+	local instances, parts, lights = finishPivots(template)
+	print(string.format("guardian arena: %d instances, %d parts, %d lights", instances, parts, lights))
+	local gi, gp, gl = finishPivots(floor.GuardianGate)
+	print(string.format("guardian gate: %d instances, %d parts, %d lights", gi, gp, gl))
 end
 
 fs.writeFile(output, roblox.serializePlace(game))
