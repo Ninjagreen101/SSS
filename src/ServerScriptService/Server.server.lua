@@ -1,44 +1,98 @@
 --!strict
--- Server bootstrap: the only server Script. Requires every system in a fixed
--- order, runs all Init() (wire references), then all Start() (begin running).
+--[[
+	Server bootstrap: the only server Script in the game.
+	1. Creates every remote (Net.Init).
+	2. Requires each system in a fixed order and calls Init() on all of them
+	   (wire references, connect remotes; must not yield).
+	3. Calls Start() on all of them (begin running; may spawn loops).
+	A system that errors is reported, but the rest still start so one bug
+	can't take the whole server down.
+]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Net = require(Shared.Net)
+local Log = require(Shared.Util.Log)
 
-local Systems = script.Parent:WaitForChild("Systems")
+local log = Log.new("Server")
 
-type System = { Init: () -> any?, Start: () -> any? }
-
-local ORDER = {
-	"DataService",
-	"WorldService",
-	"FloorService",
-	"DungeonService",
+type System = {
+	Init: (() -> ())?,
+	Start: (() -> ())?,
 }
 
-Net.initServer()
+-- Fixed start order: dependencies first.
+local ORDER = {
+	"AnalyticsService",
+	"AntiExploitService",
+	"DataService",
+	"GearService",
+	"VitalsService",
+	"FloorService",
+	"EnvironmentService",
+	"TargetService",
+	"WeaponService",
+	"CharacterService",
+	"CombatService",
+	"StatusService",
+	"PressureService",
+	"CurrentService",
+	"ProjectileService",
+	"ProgressionService",
+	"MobService",
+	"SpellService",
+	"BeaconService",
+	"ArtService",
+	"InventoryService",
+	"EconomyService",
+	"PositionService",
+	"CraftingService",
+	"LootService",
+	"GearEffectsService",
+	"TrainingService",
+	"SecretService",
+	"DungeonService",
+	"DevService",
+}
 
-local loaded: { { name: string, system: System } } = {}
+Net.Init()
+
+local systemsFolder = ServerScriptService:WaitForChild("Systems")
+local systems: { { Name: string, Module: System } } = {}
+
 for _, name in ORDER do
-	local module = Systems:FindFirstChild(name)
-	assert(module and module:IsA("ModuleScript"), "missing system " .. name)
-	table.insert(loaded, { name = name, system = require(module) :: any })
-end
-
-for _, entry in loaded do
-	local ok, err = pcall(entry.system.Init)
-	if not ok then
-		error(string.format("[Server] %s.Init failed: %s", entry.name, tostring(err)))
+	local moduleScript = systemsFolder:FindFirstChild(name)
+	if not moduleScript or not moduleScript:IsA("ModuleScript") then
+		log:Error(`Missing system module {name}`)
+		continue
+	end
+	local ok, result = pcall(require, moduleScript)
+	if ok then
+		table.insert(systems, { Name = name, Module = result :: System })
+	else
+		log:Error(`{name} failed to load: {tostring(result)}`)
 	end
 end
 
-for _, entry in loaded do
-	task.spawn(function()
-		local ok, err = pcall(entry.system.Start)
-		if not ok then
-			warn(string.format("[Server] %s.Start failed: %s", entry.name, tostring(err)))
+local function runPhase(phase: "Init" | "Start")
+	for _, entry in systems do
+		local fn = entry.Module[phase]
+		if fn then
+			local started = os.clock()
+			local ok, err = xpcall(fn, debug.traceback)
+			if not ok then
+				log:Error(`{entry.Name}.{phase} failed: {tostring(err)}`)
+			end
+			local elapsed = os.clock() - started
+			if phase == "Init" and elapsed > 0.05 then
+				log:Warn(`{entry.Name}.Init took {string.format("%.0f", elapsed * 1000)} ms (Init should not yield)`)
+			end
 		end
-	end)
+	end
 end
+
+runPhase("Init")
+runPhase("Start")
+log:Info(`Started {#systems} systems`)

@@ -1,6 +1,5 @@
-# Toolchain (https://github.com/rojo-rbx/rokit). Rojo 7.6+ is required for the
-# project's syncRules (DESIGN_DECISIONS.md syncs into ServerStorage as text).
+# Toolchain (https://github.com/rojo-rbx/rokit). Lune 0.10.5+ is required to read the place file.
 [tools]
 rojo = "rojo-rbx/rojo@7.6.1"
 luau-lsp = "JohnnyMorganz/luau-lsp@1.70.1"
-lune = "lune-org/lune@0.10.4"
+lune = "lune-org/lune@0.10.5"

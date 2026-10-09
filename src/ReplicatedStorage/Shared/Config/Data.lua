@@ -1,14 +1,13 @@
 --!strict
--- Persistence tuning.
+-- Saving configuration (Spec Section 3, Saving).
 
-local Data = {
-	StoreName = "SpireProfiles_v1",
-	DataVersion = 1,
+local TableUtil = require(script.Parent.Parent.Util.TableUtil)
+
+return TableUtil.DeepFreeze({
+	StoreName = "SpirePlayerData",
+	KeyPrefix = "Player_",
+	DataVersion = 4, -- bump + add a migration in DataService/Migrations for every schema change
 	AutosaveSeconds = 120,
-	SessionLockSeconds = 300, -- a lock older than this is considered abandoned
-	LoadRetries = 6,
-	LoadRetryDelay = 2,
-	SaveRetries = 4,
-}
-
-return Data
+	LoadRetryKickSeconds = 60, -- give up loading after this long and kick with a retry message
+	SaveSettingsDebounce = 1.5, -- client batches settings edits before sending
+})

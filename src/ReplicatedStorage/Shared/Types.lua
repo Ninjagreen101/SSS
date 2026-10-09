@@ -1,359 +1,226 @@
 --!strict
--- Shared Luau types for The Spire.
--- World types describe the data-only output of the edit-time planners
--- (ServerStorage/WorldBuilder/Plan) and the floor definitions in Shared/Data/Floors.
+--[[
+	Types
+	Shared Luau types for saved data and cross-system payloads.
+	PlayerData is the exact shape stored in ProfileStore (see
+	ServerScriptService/Systems/DataService/Template). Saved tables only use
+	string keys or dense arrays, never sparse number keys, so they serialize safely.
+]]
 
-export type Vec3 = { number }
+local Enums = require(script.Parent.Enums)
 
--- ===================================================================== kit
+export type Rarity = Enums.Rarity
+export type Attunement = Enums.Attunement
+export type Stat = Enums.Stat
+export type EquipSlot = Enums.EquipSlot
+export type Action = Enums.Action
+export type BindingDevice = Enums.BindingDevice
+export type TouchButtonId = Enums.TouchButtonId
 
-export type KitCollider = {
-	shape: string, -- "Box" | "Wedge" (wedge rises toward local +Z, like a Roblox WedgePart)
-	c: Vec3,
-	s: Vec3,
-	ry: number, -- degrees
+-- One rolled affix on an item instance, e.g. { Id = "TideDamage", Value = 6 }.
+export type Affix = {
+	Id: string,
+	Value: number,
 }
 
-export type KitOpening = {
-	kind: string, -- "door" | "window" | "arch" | "archdoor" | "shop" | "breach"
-	x0: number,
-	x1: number,
-	y0: number,
-	y1: number,
+-- A concrete item a player owns. `DefId` points at Shared/Data/Items.
+export type ItemInstance = {
+	Uid: string,
+	DefId: string,
+	Count: number,
+	Rarity: Rarity,
+	Upgrade: number,
+	Durability: number,
+	Affixes: { Affix },
+	Locked: boolean,
+	New: boolean,
+	AcquiredAt: number,
+	Unique: string?, -- unique named effect rolled on Legendary+ gear (Data/Affixes)
 }
 
-export type KitPiece = {
-	id: string,
-	category: string,
-	material: string,
-	color: string,
-	collision: string, -- "Box" | "Hull" | "None" | "Colliders" | "Facade"
-	stretch: string,
-	size: Vec3,
-	center: Vec3,
-	footprint: Vec3,
-	colliders: { KitCollider },
-	openings: { KitOpening },
-	anchors: { [string]: Vec3 },
-	tris: number,
+-- A sold item a shop keeps for buy-back (newest last).
+export type BuybackEntry = {
+	Id: string,
+	Item: ItemInstance,
+	Price: number,
 }
 
--- An assembly is a reusable group of kit pieces plus lights/emitters (e.g. a
--- lantern = post + glowing glass + light). Offsets are in assembly space.
-export type AssemblyPart = {
-	kit: string,
-	x: number,
-	y: number,
-	z: number,
-	ry: number?,
-	s: number?,
-	material: string?,
-	color: string?,
+-- Item bookkeeping that isn't an item: starter kit, pity, buy-back, tracking.
+export type ItemState = {
+	StarterGranted: boolean,
+	Pity: { [string]: number }, -- zone -> kills since the last Rare+ gear drop
+	Buyback: { BuybackEntry },
+	NextBuyback: number,
+	TrackedRecipe: string, -- "" = nothing pinned to the HUD
+	SeenItems: { [string]: boolean }, -- item ids ever picked up (key-material discovery, "new" badges)
 }
 
-export type AssemblyLight = {
-	x: number,
-	y: number,
-	z: number,
-	color: string,
-	range: number,
-	brightness: number,
-	night: boolean,
-	attach: number?, -- index of the assembly part that hosts the light (no extra anchor)
+export type StatBlock = {
+	Vitality: number,
+	Endurance: number,
+	Strength: number,
+	Finesse: number,
+	Draw: number,
+	Density: number,
+	Control: number,
 }
 
-export type AssemblyEmitter = {
-	preset: string,
-	x: number,
-	y: number,
-	z: number,
+-- Up to two bindings per device per action, stored as names:
+-- KeyCode names ("Q"), mouse buttons ("MouseButton1"), or gamepad chords ("ButtonL2+ButtonR2").
+export type ActionBinding = {
+	Keyboard: { string },
+	Gamepad: { string },
 }
 
-export type Assembly = {
-	parts: { AssemblyPart },
-	lights: { AssemblyLight }?,
-	emitters: { AssemblyEmitter }?,
-	footprint: { number }, -- {w, d} for placement clearance
+export type TouchButtonLayout = {
+	X: number, -- 0..1 of screen width (anchor point = button centre)
+	Y: number, -- 0..1 of screen height
+	Scale: number,
 }
 
--- ============================================================ plan output
-
-export type PiecePlacement = {
-	kit: string,
-	x: number,
-	y: number,
-	z: number,
-	ry: number, -- radians
-	rx: number?,
-	rz: number?,
-	s: number?, -- uniform scale
-	sx: number?, -- per-axis stretch (only for pieces whose manifest allows it)
-	sy: number?,
-	sz: number?,
-	material: string?,
-	color: string?,
-	tag: string?,
-	noCollide: boolean?,
-	text: string?, -- Strings key painted on both faces (sign boards)
+export type Settings = {
+	CameraShake: number,
+	DamageNumbers: boolean,
+	HudScale: number,
+	MasterVolume: number,
+	MusicVolume: number,
+	SfxVolume: number,
+	UiVolume: number,
+	AmbientVolume: number,
+	GraphicsQuality: Enums.GraphicsQuality,
+	EffectsQuality: Enums.EffectsQuality,
+	ColorblindMode: Enums.ColorblindMode,
+	ReducedMotion: boolean,
+	AimedCast: boolean,
+	ShoulderSide: Enums.ShoulderSide,
+	AutoSprint: boolean,
+	CameraSensitivity: number,
+	Keybinds: { [string]: ActionBinding }, -- only actions the player changed
+	TouchLayout: { [string]: TouchButtonLayout }, -- only buttons the player moved
 }
 
-export type SolidPlacement = {
-	kind: string, -- "Collider" | "Surface" | "Glass" | "Current" | "Falls" | "Trigger" | "Barrier"
-	shape: string, -- "Block" | "Wedge" | "Cylinder"
-	x: number,
-	y: number,
-	z: number,
-	sx: number,
-	sy: number,
-	sz: number,
-	ry: number,
-	rx: number?,
-	rz: number?,
-	material: string?,
-	color: string?,
-	transparency: number?,
-	tag: string?,
-	name: string?,
-	text: string?, -- Strings key rendered on the front face (signs, notice boards)
+export type QuestState = {
+	Stage: number,
+	Progress: { [string]: number },
+	StartedAt: number,
 }
 
-export type LightPlacement = {
-	x: number,
-	y: number,
-	z: number,
-	color: string,
-	range: number,
-	brightness: number,
-	night: boolean,
-	piece: number?, -- index into the node's pieces: the light is parented to that part
+export type PlayerData = {
+	DataVersion: number,
+
+	-- Progression
+	Level: number,
+	XP: number,
+	StatPoints: number,
+	SkillPoints: number,
+	Stats: StatBlock,
+	Position: string, -- "" until chosen at level 15
+	SkillTree: { [string]: boolean }, -- unlocked node ids
+	Attunements: {
+		Primary: string, -- "" until the Attunement Trial
+		Secondary: string,
+		UnlockedForms: { string },
+	},
+	RespecCount: number,
+
+	-- Items
+	Inventory: {
+		Items: { [string]: ItemInstance }, -- keyed by Uid
+		NextUid: number,
+		Capacity: number,
+	},
+	Bank: {
+		Items: { [string]: ItemInstance },
+		Capacity: number,
+	},
+	Equipped: { [string]: string }, -- EquipSlot -> item Uid ("" = empty)
+	ItemState: ItemState,
+	Hotbar: {
+		Spells: { string }, -- 4 spell ids ("" = empty)
+		WeaponArt: string,
+		Consumables: { string }, -- 2 item def ids
+		Ability: string, -- Position ability on the ability key ("" = none)
+	},
+	Beacons: {
+		Slots: { string }, -- behaviour id per slot
+		Skin: string,
+	},
+
+	-- Economy
+	Currencies: {
+		Gold: number,
+		Shards: number,
+		FloorTokens: { [string]: number }, -- floor id -> tokens
+	},
+	LostCurrent: {
+		Gold: number,
+		FloorId: string,
+		Position: { number }, -- {x, y, z}; empty when none
+	},
+
+	-- World
+	Quests: {
+		Active: { [string]: QuestState },
+		Completed: { [string]: number }, -- quest id -> completion unix time
+		Tracked: string,
+		DailyResetAt: number,
+		WeeklyResetAt: number,
+	},
+	Floors: {
+		Unlocked: { [string]: boolean }, -- "1", "2" ...
+		GuardiansCleared: { [string]: number },
+		Current: string,
+	},
+	Waystones: {
+		Discovered: { [string]: boolean },
+		Last: string,
+	},
+	Discoveries: { [string]: boolean },
+	RecipesKnown: { [string]: boolean },
+	Achievements: { [string]: number },
+	Title: string,
+
+	-- Cosmetics & monetization
+	Cosmetics: {
+		Owned: { [string]: boolean },
+		Equipped: { [string]: string },
+		Outfits: { { [string]: string } },
+	},
+	Purchases: {
+		Receipts: { [string]: number }, -- PurchaseId -> unix time (idempotent grants)
+		Passes: { [string]: boolean },
+	},
+
+	-- Player
+	Character: {
+		Created: boolean,
+		Name: string,
+		BodyType: number,
+		SkinTone: number,
+		Face: number,
+		Hair: number,
+		HairColor: number,
+		CloakColor: number,
+	},
+	Settings: Settings,
+	Tutorial: { [string]: boolean },
+	PlayStats: {
+		FirstJoin: number,
+		LastJoin: number,
+		Sessions: number,
+		PlaySeconds: number,
+		Kills: number,
+		Deaths: number,
+		GuardianKills: number,
+		Parries: number,
+	},
 }
 
-export type EmitterPlacement = {
-	preset: string,
-	x: number,
-	y: number,
-	z: number,
-	sx: number?,
-	sy: number?,
-	sz: number?,
-	ry: number?,
+-- Payload the server sends for one changed value in the client replica.
+export type DataChange = {
+	Path: { string },
+	Value: any,
 }
 
-export type MarkerValue = string | number | boolean
-
-export type MarkerPlacement = {
-	kind: string,
-	id: string,
-	x: number,
-	y: number,
-	z: number,
-	ry: number,
-	attributes: { [string]: any }?, -- string | number | boolean values
-}
-
-export type PlanNode = {
-	name: string,
-	x: number,
-	y: number,
-	z: number,
-	ry: number,
-	streaming: string, -- "Atomic" | "Persistent" | "Default" | "Nonatomic"
-	pieces: { PiecePlacement },
-	solids: { SolidPlacement },
-	lights: { LightPlacement },
-	emitters: { EmitterPlacement },
-	markers: { MarkerPlacement },
-	children: { PlanNode },
-	tags: { string },
-	attributes: { [string]: MarkerValue },
-}
-
-export type PlanStats = {
-	pieces: number,
-	solids: number,
-	lights: number,
-	emitters: number,
-	markers: number,
-	models: number,
-	instances: number,
-	tris: number,
-}
-
--- 2D oriented box used for lot / exclusion tests (half extents)
-export type OBB = { x: number, z: number, hw: number, hd: number, ry: number }
-
--- ========================================================== floor schema
-
-export type Point2 = { number } -- {x, z}
-
-export type StreetDef = {
-	id: string,
-	points: { Vec3 }, -- {x, y, z}; y is the street surface height
-	width: number,
-	material: string?,
-	main: boolean?,
-	lamps: boolean?,
-	sides: string?, -- "both" (default) | "left" | "right" | "none": which sides get building frontage
-	questPath: boolean?, -- the main quest route: real stairs, guide runes, stair posts
-	signs: { { at: number, key: string, back: string? } }?, -- signposts at polyline points
-}
-
-export type DistrictDef = {
-	id: string,
-	nameKey: string,
-	polygon: { Point2 },
-	baseY: number,
-	style: string,
-	wealth: number,
-	density: number,
-	storeys: { number }, -- {min, max}
-	kinds: { [string]: number },
-	secondarySpacing: number?,
-	seed: number,
-}
-
-export type PlazaDef = {
-	id: string,
-	x: number,
-	z: number,
-	y: number,
-	radius: number,
-	material: string,
-	features: { string },
-}
-
-export type CanalNode = { number } -- {x, z, streetY}
-
-export type CanalDef = {
-	id: string,
-	nodes: { CanalNode },
-	width: number,
-	depth: number,
-	waterDrop: number, -- water surface below street level
-	healing: boolean?,
-}
-
-export type WaystoneDef = {
-	id: string,
-	nameKey: string,
-	x: number,
-	y: number,
-	z: number,
-	ry: number,
-	district: string?,
-	starting: boolean?,
-}
-
-export type ZoneDef = {
-	id: string,
-	nameKey: string,
-	kind: string, -- "Town" | "Wild" | "Dungeon" | "Hidden" | "Arena"
-	polygon: { Point2 },
-	minY: number,
-	maxY: number,
-	pressure: number, -- 1..5
-	safe: boolean,
-	levelRange: { number },
-	ambience: string,
-	priority: number,
-}
-
-export type LandmarkDef = {
-	id: string,
-	kind: string,
-	x: number,
-	y: number,
-	z: number,
-	ry: number,
-	clearRadius: number,
-}
-
-export type HiddenAreaDef = {
-	id: string,
-	nameKey: string,
-	kind: string,
-	x: number,
-	y: number,
-	z: number,
-	ry: number,
-	chestId: string,
-	rewards: { gold: number, items: { { id: string, count: number } } },
-}
-
-export type SpawnRegionDef = {
-	id: string,
-	mob: string,
-	x: number,
-	z: number,
-	radius: number,
-	count: number,
-	levelMin: number,
-	levelMax: number,
-	night: boolean?,
-	elite: boolean?,
-}
-
-export type WildDef = {
-	id: string,
-	polygon: { Point2 },
-	biome: string, -- "Marsh" | "Forest" | "Crags" | "Shore"
-	density: number,
-	seed: number,
-}
-
-export type PathDef = {
-	id: string,
-	points: { Point2 },
-	width: number,
-	material: string,
-	boardwalk: boolean?,
-}
-
-export type TerrainRegionDef = {
-	id: string,
-	polygon: { Point2 },
-	base: number,
-	amplitude: number,
-	frequency: number,
-	material: string,
-	blend: number,
-}
-
-export type PoolDef = { x: number, z: number, radius: number, waterY: number, bedY: number }
-
-export type FloorDef = {
-	id: string,
-	index: number,
-	nameKey: string,
-	seed: number,
-	size: number,
-	seaLevel: number,
-	spawnWaystone: string,
-	lightingPreset: string,
-	terrainRegions: { TerrainRegionDef },
-	pools: { PoolDef },
-	districts: { DistrictDef },
-	streets: { StreetDef },
-	plazas: { PlazaDef },
-	canals: { CanalDef },
-	waystones: { WaystoneDef },
-	zones: { ZoneDef },
-	landmarks: { LandmarkDef },
-	hidden: { HiddenAreaDef },
-	spawns: { SpawnRegionDef },
-	wilds: { WildDef },
-	paths: { PathDef },
-	quay: { Point2 },
-	dungeon: { id: string, nameKey: string, entrance: Vec3, entranceRy: number },
-	guardianGate: { x: number, y: number, z: number, ry: number },
-}
-
--- ============================================================ runtime
-
-export type TerrainSample = {
-	height: number,
-	material: string,
-	water: number?, -- water surface height, nil when dry
-}
-
-return {}
+-- Types are compile-time only; the module returns an empty frozen table.
+return table.freeze({})

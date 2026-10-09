@@ -13,9 +13,10 @@ Rules:
 - Follow the brief exactly. If it requires a design decision the brief does not settle
   (new architecture, changing a shared contract in Shared/Types, Net or Config), stop and
   report the question instead of guessing.
-- Every Luau file starts with `--!strict`, has typed functions, no wait/spawn/delay, no
+- Every Luau file starts with `--!strict`, has typed functions, task.wait/spawn/delay only, no
   TODOs. Balance numbers go in Shared/Config, player text in Shared/Strings.
-- Planners under ServerStorage/WorldBuilder/Plan stay pure (no Roblox types).
+- World edits are edit-time tools in ServerStorage/Tools, each with its own folder and an
+  Undo. Never overwrite the user's place file; write a new one.
 - Before reporting, run the checks relevant to your change (see CLAUDE.md "Checks") and fix
   what they find. If the brief says the task is xhigh-critical (netcode, anti-exploit, save
   data), re-read your diff adversarially before finishing.

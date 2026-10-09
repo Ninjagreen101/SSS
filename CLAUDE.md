@@ -1,8 +1,9 @@
 # The Spire: working agreement
 
-A Roblox RPG built as a Rojo project in strict Luau. Read `README.md` for the
-layout and `src/ServerStorage/DESIGN_DECISIONS.md` for past decisions. Each
-phase report lives in `docs/`.
+A Roblox RPG in strict Luau. The world lives in the place file (`SPIRE_NEW.rbxl`,
+shared outside git). Every script in it lives here as a Rojo project. Read
+`README.md` for the layout and `src/ServerStorage/DESIGN_DECISIONS.md.lua` for
+past decisions. Add new decisions to the end of that log.
 
 ## Roles and models
 
@@ -51,8 +52,11 @@ directly:
   `Shared/Strings`. All names are original.
 - The server is the authority. Clients send intent only, through
   `Shared/Net`, which validates and rate-limits every remote.
-- World planners (`ServerStorage/WorldBuilder/Plan`) stay pure Luau with no
-  Roblox types. A floor's budget is about 40,000 instances.
+- World edits are edit-time tools in `ServerStorage/Tools`. Each one puts its
+  additions in its own folder and has an `Undo` (see `Floor1Polish`,
+  `Floor1Courtyards`). Kit pieces are placed with `KitLibrary.Place`.
+- Never overwrite the user's place file. Write a new file with
+  `tools/place/sync_scripts.luau` (Lune 0.10.5+).
 
 ## Checks
 
@@ -64,12 +68,11 @@ Roblox type definitions come from
 ```bash
 rojo sourcemap default.project.json -o sourcemap.json
 luau-lsp analyze --platform roblox --sourcemap sourcemap.json \
-  --definitions @roblox=globalTypes.d.luau $(find src -name "*.lua")      # expect no output
-rojo build default.project.json -o build/TheSpire.rbxl
-python3 tools/harness/run_luau.py tools/harness/entries/floor.luau Lowharbor plan > build/floor.json
-lune run tools/lune/build_world.luau build/TheSpire.rbxl build/Lowharbor_world.rbxl Lowharbor
+  --definitions @roblox=globalTypes.d.luau $(find src -name "*.lua")      # only ProfileStore errors
+rojo build default.project.json -o build/scripts.rbxl                   # project builds
+lune run tools/place/sync_scripts.luau <place.rbxl> build/out.rbxl      # scripts into a copy of the place
 ```
 
-The harness needs the `luau` CLI (set `LUAU_BIN` if it isn't at the default
-path). Blender previews (`tools/blender/*.py`) are optional and expensive.
-Run them only when the orchestrator asks to see the world.
+The type check is clean except for the vendored `Packages/ProfileStore.lua`.
+`tools/place/footprints.luau` plus `plot_footprints.py` give a cheap top-down
+check of world edits. Prefer them to renders.

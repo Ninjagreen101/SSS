@@ -1,76 +1,54 @@
 {
   "name": "TheSpire",
-  "syncRules": [
-    {
-      "pattern": "*.md",
-      "use": "text"
-    }
-  ],
   "tree": {
     "$className": "DataModel",
     "ReplicatedStorage": {
+      "$ignoreUnknownInstances": true,
       "Shared": {
         "$path": "src/ReplicatedStorage/Shared"
-      },
-      "Assets": {
-        "$className": "Folder",
-        "Kit": {
-          "$className": "Folder"
-        },
-        "VFX": {
-          "$className": "Folder"
-        },
-        "SFX": {
-          "$className": "Folder"
-        },
-        "Animations": {
-          "$className": "Folder"
-        },
-        "UI": {
-          "$className": "Folder"
-        },
-        "Weapons": {
-          "$className": "Folder"
-        },
-        "Armor": {
-          "$className": "Folder"
-        },
-        "Props": {
-          "$className": "Folder"
-        }
       }
     },
     "ServerScriptService": {
-      "$path": "src/ServerScriptService"
+      "$ignoreUnknownInstances": true,
+      "Server": {
+        "$path": "src/ServerScriptService/Server.server.lua"
+      },
+      "Systems": {
+        "$path": "src/ServerScriptService/Systems"
+      },
+      "Packages": {
+        "$path": "src/ServerScriptService/Packages"
+      }
     },
     "ServerStorage": {
-      "$path": "src/ServerStorage"
+      "$ignoreUnknownInstances": true,
+      "Tools": {
+        "$path": "src/ServerStorage/Tools"
+      },
+      "DESIGN_DECISIONS.md": {
+        "$path": "src/ServerStorage/DESIGN_DECISIONS.md.lua"
+      }
     },
     "StarterPlayer": {
+      "$ignoreUnknownInstances": true,
       "StarterPlayerScripts": {
-        "$path": "src/StarterPlayer/StarterPlayerScripts"
+        "$ignoreUnknownInstances": true,
+        "Client": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/Client.client.lua"
+        },
+        "Controllers": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/Controllers"
+        },
+        "UI": {
+          "$path": "src/StarterPlayer/StarterPlayerScripts/UI"
+        }
       }
     },
     "Workspace": {
-      "$properties": {
-        "StreamingEnabled": true,
-        "StreamingTargetRadius": 512,
-        "StreamingMinRadius": 160,
-        "StreamOutBehavior": "Opportunistic",
-        "ModelStreamingBehavior": "Improved"
-      }
+      "$ignoreUnknownInstances": true
     },
     "Lighting": {
-      "$properties": {
-        "Technology": "Future",
-        "GlobalShadows": true,
-        "ClockTime": 20.5
-      }
-    },
-    "SoundService": {
-      "$properties": {
-        "RespectFilteringEnabled": true
-      }
+      "$ignoreUnknownInstances": true
     }
   }
 }
