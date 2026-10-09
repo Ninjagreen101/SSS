@@ -2,4 +2,4 @@
 # project's syncRules (DESIGN_DECISIONS.md syncs into ServerStorage as text).
 [tools]
 rojo = "rojo-rbx/rojo@7.6.1"
-luau-lsp = "JohnnyMorganz/luau-lsp@1.53.1"
+luau-lsp = "JohnnyMorganz/luau-lsp@1.70.1"

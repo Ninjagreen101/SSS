@@ -250,7 +250,7 @@ function PlanApplier.apply(root: PlanNode, parent: Instance, opts: ApplyOptions?
 				local att = Instance.new("Attachment")
 				att.Name = "Light"
 				att.Parent = getAnchor()
-				att.WorldPosition = origin:PointToWorldSpace(Vector3.new(l.x, l.y, l.z))
+				att.Position = Vector3.new(l.x, l.y, l.z) -- the anchor sits at the node origin
 				light.Parent = att
 				tick()
 			end
@@ -284,7 +284,7 @@ function PlanApplier.apply(root: PlanNode, parent: Instance, opts: ApplyOptions?
 				local att = Instance.new("Attachment")
 				att.Name = e.preset
 				att.Parent = getAnchor()
-				att.WorldPosition = origin:PointToWorldSpace(Vector3.new(e.x, e.y, e.z))
+				att.Position = Vector3.new(e.x, e.y, e.z)
 				emitter.Parent = att
 			end
 			stats.emitters += 1
