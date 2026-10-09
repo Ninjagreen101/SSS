@@ -491,4 +491,67 @@ Each entry: the ambiguity, the choice, and why (fun, readability, mid-range phon
      - Only legs within 200 studs of the camera are animated, with one BulkMoveTo per frame.
      - School size scales with graphics quality (2 to 8 fish; none on the lowest settings). That is
        at most about 160 local parts, and usually 2 or 3 legs are near.
+
+## Phase 10 - Guardian: the Brinewarden
+
+The design and its Roblox references are in docs/PHASE10_GUARDIAN.md.
+
+149. **Guardian arenas are private copies, like dungeons.** Each party that challenges the First Gate
+     gets its own clone of `ServerStorage.GuardianArenas.Brinewarden`. Clones sit at
+     Config.Mobs.Guardian.ArenaOrigin, on the opposite side of the floor from the dungeons. The spec asks
+     for reserved servers; as with #133, that is a transport change for Phase 12. One busy server
+     never makes a party wait, and nobody can interfere with another party's fight.
+150. **Challenging is a gathering.** The gate prompt starts a 10 s window. Anyone else who uses the gate
+     in that window joins, up to 8. Players below the Guardian's level get a warning but are not
+     refused: the spec's level 12 is advice. Re-fights are allowed. First-clear rewards (unlock, shards,
+     skill points) are paid once per player; loot and XP are paid every clear.
+151. **Health scales with the party; damage does not.** Health uses the spec formula,
+     BaseHealth x (1 + 0.75 x (players - 1)), with players counted at the start. Adds, lances and
+     whirlpools also scale with the party. Blow damage never changes, so a dodge learned solo works in
+     a group of 8. BaseHealth 7500 gives a fight of about 3.5 min solo and about 3 min for 4 or 8
+     players (tools/place/sim_guardian.luau).
+152. **Health gates instead of phase skips.** Health clamps at each phase threshold (60%, 25%) until the
+     3 s transition has played. The Warden is immune during the transition, and its running move is
+     cancelled (a held player is released). Burst damage cannot skip a phase or its arena change.
+153. **The Warden is unflinching.** Ordinary hits never stagger it, and stuns and parries don't
+     interrupt it. Only a posture break does: it kneels for 4 s, and the first blow is a Finisher.
+     Parries still add their heavy posture damage, so parrying is the fastest route to a break.
+     Weak-point blows deal x1.5 damage and x2 posture: the back seam in phases 1-2, the front core in
+     phase 3.
+154. **The tide is the Pressure shift.** From phase 2 the arena alternates:
+     - High tide for 14 s: Pressure 5, spells strongest.
+     - Ebb for 7 s: Pressure 1, and the drying shell takes x1.5 posture.
+     A 1.5 s tell (wall runes, sound, a "The tide turns..." line) comes before each turn. Tide Surge
+     forces an early turn. Players read the water to choose casting or swinging.
+155. **The grab punishes turtling, and allies can break it.** Claw Grab is weighted x3 against a target
+     who blocked in the last 1.5 s. It is unparryable and unblockable but dodgeable. A held player takes
+     three crushes and is thrown. Allies free them early by dealing 120 posture to the Warden. The victim
+     is released on every exit: phase change, posture break, death, leaving, wipe or victory.
+156. **Everything is telegraphed, and red means "don't parry".** No wind-up is shorter than 0.4 s, even
+     in phase 3, where telegraphs are x0.85. Every area attack draws a red ground shape that fills
+     before it fires: circle, ring, line, cone or the travelling tidal-wave ring. Unparryable blows
+     flash an ember glint and play a distinct sound. The tidal wave can only be avoided by dodging
+     through it, using i-frames timed to the ring.
+157. **Big bodies have hit sizes.** Targets can carry a hit radius and height. Melee, spells,
+     projectiles and arts measure to the target's capsule, not to its root. A 20-stud Warden is hit
+     where it visibly stands, and its blows reach players below its root. Targets with no size behave
+     exactly as before.
+158. **Rewards need a small contribution.** A member must deal 2% of the Warden's health or stay alive
+     in the arena for 45 s. The bar is low on purpose: healers, tanks and newer Climbers still earn the
+     clear. Arcane Odyssey's 20% damage gate punishes support play.
+159. **Announcements.** The first clear of a floor on a server sends everyone a banner, "Floor 1 has
+     been cleared by {names}". A MessagingService message (pcall-guarded, at most one per 30 s) shows
+     other servers an "Across the Spire" toast. Personal unlock cards show only to the party.
+160. **Boss UI.**
+     - The boss bar sits at the bottom of the screen (spec). On touch devices it moves to the top so
+       the action buttons never cover it.
+     - The intro is skippable after the first view (`Floors.IntrosSeen`, profile v5). The Warden stays
+       dormant until the intro has ended for everyone, so skipping gives no head start.
+     - Roblox has no global time scale. The victory slow motion slows the Warden's animations,
+       desaturates the screen and moves the camera in, on each client.
+161. **Music needs licensed tracks.** MusicController crossfades layers over 2 s: one per phase, plus a
+     victory sting. Track ids live in Config.Environment.Music. Ids are left empty rather than guessed,
+     and an empty layer is silent. The place owner picks licensed tracks from the Creator Store.
+162. **No Floor 2 yet.** A first clear sets `Floors.Unlocked["2"]` and shows the unlock card. After each victory a
+     toast says the stair to Amberveil "will rise soon". Floor 2 and its teleport arrive in Phase 14.
 ]==]
