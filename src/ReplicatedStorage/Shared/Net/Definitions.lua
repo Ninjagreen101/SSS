@@ -73,6 +73,17 @@ local Definitions: { [string]: RemoteDef } = {
 	RequestRespec = toServer({ S.Boolean() }), -- also give up the Position
 	RequestAbility = toServer({ S.UnitVector3() }), -- cast the equipped Position ability along this aim
 
+	-- Quests and onboarding (Phase 11, docs/PHASE11_QUESTS.md). The server checks NPC distance and every rule.
+	RequestQuestAction = toServer({
+		S.OneOf({ "Accept", "TurnIn", "Abandon", "Track", "Reroll" }),
+		S.String(0, 48), -- quest id ("" for Track = untrack)
+		S.String(0, 32), -- npc id ("" when no NPC is involved)
+	}),
+	RequestTalk = toServer({ S.Id(32) }), -- npc id: the player opened that NPC's dialogue
+	RequestSetTitle = toServer({ S.String(0, 48) }), -- achievement id whose title to show ("" = none)
+	RequestMapPin = toServer({ S.OneOf({ "Add", "Remove" }), S.Number(-5000, 5000), S.Number(-5000, 5000), S.String(0, 16) }), -- action, x, z, icon
+	RequestTutorial = toServer({ S.OneOf({ "Skip", "Continue" }) }),
+
 	-- Server -> client (results)
 	DataSnapshot = toClient(), -- full replica of the player's own saved data
 	DataChanged = toClient(), -- { Path, Value } list
@@ -97,6 +108,11 @@ local Definitions: { [string]: RemoteDef } = {
 	LevelUp = toClient(), -- (characterModel, level) someone nearby levelled up: draw the pillar of light
 	SurgeBoom = toClient(), -- (characterModel) a nearby runner broke into a Surge: draw the sonic wind boom
 	SpellCooldowns = toClient(), -- ({ [spellId]: serverTimeReady }) cooldowns changed on the server (Arcblade hits, Relay)
+
+	-- Quests and onboarding (Phase 11). Quest state itself replicates through DataController.
+	QuestEvent = toClient(), -- (kind "Accepted"|"Progress"|"Ready"|"Completed"|"Abandoned"|"Rolled", questId, payload)
+	AchievementUnlocked = toClient(), -- (achievementId)
+	TutorialStep = toClient(), -- (step, payload)
 
 	-- Guardians (Phase 10). Payloads per kind: docs/PHASE10_GUARDIAN.md section 3.
 	GuardianEvent = toClient(), -- (kind "Gather"|"Intro"|"Phase"|"Tide"|"Victory"|"Wipe"|"Banner", payload)

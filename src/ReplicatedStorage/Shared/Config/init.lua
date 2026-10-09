@@ -23,6 +23,7 @@ local Data = require(script.Data)
 local Assets = require(script.Assets)
 local Environment = require(script.Environment)
 local Dungeons = require(script.Dungeons)
+local Quests = require(script.Quests)
 
 export type DungeonDef = Dungeons.DungeonDef
 
@@ -42,6 +43,7 @@ local Config = {
 	Assets = Assets,
 	Environment = Environment,
 	Dungeons = Dungeons,
+	Quests = Quests,
 }
 
 return table.freeze(Config)

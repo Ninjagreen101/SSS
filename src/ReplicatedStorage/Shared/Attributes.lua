@@ -111,6 +111,10 @@ local Attributes = {
 	Elite = "Elite",
 	MobBlow = "MobBlow",
 
+	Title = "Title", -- player: Strings path of the shown title ("" = none)
+	NpcId = "NpcId",
+	PointId = "PointId",
+	Radius = "Radius",
 	GuardianId = "GuardianId",
 	GuardianPhase = "GuardianPhase",
 	GuardianTide = "GuardianTide",
@@ -146,6 +150,8 @@ local Tags = {
 	ItemStation = "ItemStation", -- Forge, Armorer, Alchemy, Loom, Altar, Shop, TokenShop, Bank
 	Guardian = "Guardian", -- a live Floor Guardian model (boss bar instead of a nameplate)
 	GuardianGate = "SpireGuardianGate", -- the challenge prompt part at a Guardian's gate
+	Npc = "SpireNpc", -- a town NPC model (Phase 11)
+	QuestPoint = "SpireQuestPoint", -- a quest point part (attributes PointId, Radius)
 }
 
 -- Status attribute name for a status, e.g. "StatusSoaked".

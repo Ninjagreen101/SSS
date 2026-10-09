@@ -70,4 +70,11 @@ return TableUtil.DeepFreeze({
 		PlayableSize = 3000,
 		InstanceBudget = 40000,
 	},
+
+	-- Floor maps (Map M and the minimap, Phase 11). Image: an uploaded top-down render of the floor
+	-- (tools/place/render_map.luau writes assets/map/floor<N>_map.png); empty = the client draws the
+	-- map from ReplicatedStorage.FloorData.Regions. Center/Size: the world square the image covers.
+	Maps = {
+		["1"] = { Image = "", Center = Vector2.new(0, 0), Size = 3000 },
+	} :: { [string]: { Image: string, Center: Vector2, Size: number } },
 })

@@ -38,6 +38,11 @@ return TableUtil.DeepFreeze({
 		RequestEquipAbility = { Burst = 6, PerSecond = 3 },
 		RequestRespec = { Burst = 2, PerSecond = 0.2 },
 		RequestAbility = { Burst = 3, PerSecond = 2 },
+		RequestQuestAction = { Burst = 6, PerSecond = 2 },
+		RequestTalk = { Burst = 4, PerSecond = 2 },
+		RequestSetTitle = { Burst = 3, PerSecond = 1 },
+		RequestMapPin = { Burst = 6, PerSecond = 2 },
+		RequestTutorial = { Burst = 3, PerSecond = 1 },
 	} :: { [string]: RateLimit },
 
 	-- Anti-exploit strike system
