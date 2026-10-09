@@ -158,11 +158,12 @@ local function visual(caster: Model, spell: Spells.SpellDef, kind: string, data:
 	end
 end
 
--- Living combat targets of the other team within `radius` of `position`.
+-- Living combat targets of the other team within `radius` of `position`
+-- (measured to their body, so big bodies count from their surface).
 local function enemiesNear(position: Vector3, radius: number, team: TargetService.Team): { Model }
 	local list = {}
 	for model, target in TargetService.GetAll() do
-		if target.Team ~= team and TargetService.IsAlive(target) and (target.Root.Position - position).Magnitude <= radius then
+		if target.Team ~= team and TargetService.IsAlive(target) and TargetService.DistanceTo(target, position) <= radius then
 			table.insert(list, model)
 		end
 	end
@@ -294,8 +295,9 @@ local function strike(player: Player, caster: Model, spell: Spells.SpellDef, tar
 			local others = enemiesNear(root.Position, C.Status.ShockChainRadius, "Players")
 			table.sort(others, function(a: Model, b: Model): boolean
 				local ra, rb = rootOf(a), rootOf(b)
-				return (if ra then (ra.Position - root.Position).Magnitude else math.huge)
-					< (if rb then (rb.Position - root.Position).Magnitude else math.huge)
+				local ta, tb = TargetService.Get(a), TargetService.Get(b)
+				return (if ra and ta then TargetService.DistanceTo(ta, root.Position, ra.Position) else math.huge)
+					< (if rb and tb then TargetService.DistanceTo(tb, root.Position, rb.Position) else math.huge)
 			end)
 			local jumps = 0
 			for _, other in others do
@@ -373,11 +375,15 @@ FORMS.Wave = function(cast: Cast)
 	local origin = cast.Root.Position
 	for _, model in enemiesNear(origin, reach + Config.Combat.HitValidation.TargetRadius, "Players") do
 		local root = rootOf(model)
-		if root then
-			local offset = flat(root.Position - origin)
-			local inside = offset.Magnitude < Config.Combat.HitValidation.TargetRadius
-				or math.acos(math.clamp(aim:Dot(offset.Unit), -1, 1)) <= halfArc
-			if inside and not Workspace:Raycast(origin, root.Position - origin, wallParams) then
+		local target = TargetService.Get(model)
+		if root and target then
+			-- Aim at the nearest point of the body; its width widens the arc it fills.
+			local point = TargetService.AxisPoint(target, origin, root.Position)
+			local offset = flat(point - origin)
+			local distance = offset.Magnitude
+			local inside = distance < Config.Combat.HitValidation.TargetRadius + target.HitRadius
+				or math.acos(math.clamp(aim:Dot(offset.Unit), -1, 1)) <= halfArc + math.asin(math.min(1, target.HitRadius / distance))
+			if inside and not Workspace:Raycast(origin, point - origin, wallParams) then
 				strike(cast.Player, cast.Caster, cast.Spell, model, cast.Damage, cast.Posture, origin, false)
 			end
 		end
@@ -398,11 +404,13 @@ FORMS.Lance = function(cast: Cast)
 	local width = (shape.Width or 2) * cast.Area + Config.Combat.HitValidation.TargetRadius
 	for _, model in enemiesNear(origin, length + width, "Players") do
 		local root = rootOf(model)
-		if root then
-			-- Distance from the target to the beam (a line segment).
-			local along = math.clamp((root.Position - origin):Dot(direction), 0, length)
+		local target = TargetService.Get(model)
+		if root and target then
+			-- Distance from the target's body to the beam (a line segment).
+			local point = TargetService.AxisPointToSegment(target, origin, origin + direction * length, root.Position)
+			local along = math.clamp((point - origin):Dot(direction), 0, length)
 			local closest = origin + direction * along
-			if (root.Position - closest).Magnitude <= width then
+			if (point - closest).Magnitude - target.HitRadius <= width then
 				strike(cast.Player, cast.Caster, cast.Spell, model, cast.Damage, cast.Posture, origin, false)
 			end
 		end

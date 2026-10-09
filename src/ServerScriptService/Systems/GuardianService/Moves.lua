@@ -35,6 +35,7 @@ local Arena = require(script.Parent.Arena)
 local Fight = require(script.Parent.Fight)
 
 local A = Attributes.Names
+local FREED_STAGGER = 0.25 -- seconds a player freed from the claw early still staggers
 local MOVE = Config.Mobs.Movement
 local PAD = Config.Combat.HitValidation.TargetRadius -- blows land on a body, not a point
 local STEP = 1 / 30 -- seconds between checks while a move is live
@@ -400,10 +401,16 @@ local function settle(victim: Player, root: BasePart, position: Vector3)
 	task.defer(AntiExploitService.ResetMovement, victim)
 end
 
--- Let go where they hang: they land on the floor below.
+-- Let go where they hang: they land on the floor below. The seizing blow stunned them for the
+-- whole hold and throw; being freed early ends that stun (a short stagger replaces it) so breaking
+-- the grip really frees them.
 local function drop(fight: Fight, victim: Player, root: BasePart)
 	local ground = Arena.Ground(fight.Arena, root.Position)
 	settle(victim, root, ground + Vector3.new(0, standHeight(root), 0))
+	local character = victim.Character
+	if character and character == root.Parent then
+		CombatService.Stun(character, FREED_STAGGER)
+	end
 end
 
 -- Thrown `distance` studs along `direction`: a server-driven arc lasting `flight` seconds whose

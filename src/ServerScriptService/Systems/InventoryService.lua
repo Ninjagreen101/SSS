@@ -225,7 +225,7 @@ local function throwAt(player: Player, effect: Items.ConsumableEffect, aim: Vect
 	-- The burst lands when the flask does (ThrowTime matches the client arc).
 	task.delay(Config.Items.Consumables.ThrowTime, function()
 		for model, target in TargetService.GetAll() do
-			if target.Team ~= "Players" and TargetService.IsAlive(target) and (target.Root.Position - aim).Magnitude <= radius then
+			if target.Team ~= "Players" and TargetService.IsAlive(target) and TargetService.DistanceTo(target, aim) <= radius then
 				local outcome = CombatService.SpellHit(character, model, {
 					Damage = effect.Damage or 0,
 					Posture = effect.Posture or 0,

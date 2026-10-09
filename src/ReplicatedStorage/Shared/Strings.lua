@@ -822,6 +822,7 @@ local Strings = {
 		Gathering = "The Gate stirs. Climbers at the Gate join you in {seconds}s ({count}/{max})",
 		Joined = "You stand with {count} Climbers before the Gate",
 		ArenaBusy = "The Gate cannot open right now. Try again in a moment.",
+		GatheringFull = "The Gate already holds {max} Climbers. Wait for the next challenge.",
 		BelowLevel = "The Brinewarden is level {level}. Prepare well, Climber.",
 		SkipIntro = "Press {key} to skip",
 		SkipIntroTouch = "Tap to skip",

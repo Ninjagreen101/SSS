@@ -499,8 +499,10 @@ local function dissolve(visual: Visual)
 		visual.Empower = nil
 	end
 	setGlow(visual, false)
-	if isGuardian(visual.Model) then
-		-- The victory moment slows these tracks (GuardianController); let it play out first.
+	local humanoid = visual.Model:FindFirstChildOfClass("Humanoid")
+	if isGuardian(visual.Model) and humanoid and humanoid.Health <= 0 then
+		-- Felled (not a wipe reset): the victory moment slows these tracks (GuardianController);
+		-- let it play out first.
 		task.wait(Config.Mobs.Guardian.VictorySlowMo)
 		if not visual.Model.Parent then
 			return

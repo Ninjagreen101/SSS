@@ -118,12 +118,13 @@ local function visual(ctx: Context, index: number, data: { [string]: any })
 	Net.FireList("MoveStep", audience(ctx.Root.Position), ctx.Caster, ctx.Key, index, data)
 end
 
--- Living enemies within `radius` of `position`, nearest first.
+-- Living enemies within `radius` of `position`, nearest first (measured to
+-- their body, so big bodies count from their surface).
 local function enemiesNear(position: Vector3, radius: number): { Model }
 	local list: { { Model: Model, Distance: number } } = {}
 	for model, target in TargetService.GetAll() do
 		if target.Team ~= "Players" and TargetService.IsAlive(target) then
-			local distance = (target.Root.Position - position).Magnitude
+			local distance = TargetService.DistanceTo(target, position)
 			if distance <= radius then
 				table.insert(list, { Model = model, Distance = distance })
 			end
@@ -176,6 +177,10 @@ local function movable(model: Model): BasePart?
 	end
 	local target = TargetService.Get(model)
 	if not target or target.Kind ~= "Mob" then
+		return nil
+	end
+	-- Floor Guardians are scripted and immovable: pulls and pushes don't move them.
+	if model:GetAttribute(A.GuardianId) ~= nil then
 		return nil
 	end
 	return root
@@ -332,10 +337,13 @@ STEPS.Arc = function(ctx, step, index)
 		local hits = {}
 		for _, model in enemiesNear(origin, reach) do
 			local root = rootOf(model)
-			if root then
+			local target = TargetService.Get(model)
+			if root and target then
+				-- A big body's width widens the arc it fills.
 				local offset = flat(root.Position - origin)
-				local inside = offset.Magnitude < C.HitValidation.TargetRadius
-					or math.acos(math.clamp(ctx.Aim:Dot(offset.Unit), -1, 1)) <= halfArc
+				local distance = offset.Magnitude
+				local inside = distance < C.HitValidation.TargetRadius + target.HitRadius
+					or math.acos(math.clamp(ctx.Aim:Dot(offset.Unit), -1, 1)) <= halfArc + math.asin(math.min(1, target.HitRadius / distance))
 				if inside then
 					table.insert(hits, model)
 					if step.Single then
@@ -369,9 +377,10 @@ STEPS.Line = function(ctx, step, index)
 		local hits = {}
 		for _, model in enemiesNear(origin, length + width) do
 			local root = rootOf(model)
-			if root then
+			local target = TargetService.Get(model)
+			if root and target then
 				local distance = alongLine(origin, ctx.Aim, length, flat(root.Position - origin) + origin)
-				if distance <= width then
+				if distance - target.HitRadius <= width then
 					table.insert(hits, model)
 				end
 			end
@@ -394,9 +403,11 @@ STEPS.Projectile = function(ctx, step, index)
 		local along: { { Model: Model, Distance: number } } = {}
 		for _, model in enemiesNear(origin, length + radius) do
 			local root = rootOf(model)
-			if root then
-				local offset, distance = alongLine(origin, direction, length, root.Position)
-				if offset <= radius then
+			local target = TargetService.Get(model)
+			if root and target then
+				local point = TargetService.AxisPointToSegment(target, origin, origin + direction * length, root.Position)
+				local offset, distance = alongLine(origin, direction, length, point)
+				if offset - target.HitRadius <= radius then
 					table.insert(along, { Model = model, Distance = distance })
 				end
 			end
@@ -453,7 +464,9 @@ STEPS.Dash = function(ctx, step, index)
 		local struck = {}
 		for _, model in enemiesNear(from, length + width) do
 			local root = rootOf(model)
-			if root and alongLine(from, direction, length, root.Position) <= width then
+			local target = TargetService.Get(model)
+			local point = root and target and TargetService.AxisPointToSegment(target, from, from + direction * length, root.Position)
+			if target and point and alongLine(from, direction, length, point) - target.HitRadius <= width then
 				table.insert(struck, model)
 			end
 		end

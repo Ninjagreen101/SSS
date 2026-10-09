@@ -12,6 +12,10 @@
 
 	Clients draw projectiles from the Projectile remote ("Spawn" with the
 	path and colour, "End" where it stopped).
+
+	Big bodies (targets with a hit size) are also hit when the path passes
+	within the projectile's radius of their hit capsule, even where their
+	parts are thinner than the capsule.
 ]]
 
 local Players = game:GetService("Players")
@@ -103,6 +107,43 @@ local function targetOf(part: Instance): Model?
 	return nil
 end
 
+-- The first big body (a target with a hit size) on the other team whose hit
+-- capsule this step's path passes within the projectile's radius of, and how
+-- far along the path the projectile reaches it. Targets without a hit size
+-- are left to the spherecast.
+local function bigBodyOnPath(bolt: Bolt, travel: Vector3): (Model?, number)
+	local length = travel.Magnitude
+	if length <= 1e-6 then
+		return nil, 0
+	end
+	local from = bolt.Position
+	local direction = travel / length
+	local best: Model? = nil
+	local bestDistance = math.huge
+	for model, target in TargetService.GetAll() do
+		if
+			(target.HitRadius > 0 or target.HitHeight > 0)
+			and target.Team ~= bolt.Shot.Team
+			and TargetService.IsAlive(target)
+			and not table.find(bolt.Ignore, model)
+		then
+			local point = TargetService.AxisPointToSegment(target, from, from + travel)
+			local along = math.clamp((point - from):Dot(direction), 0, length)
+			local miss = (point - (from + direction * along)).Magnitude
+			local reach = bolt.Shot.Radius + target.HitRadius
+			if miss <= reach then
+				-- Back up to where the sphere first touches the capsule.
+				local distance = math.max(0, along - math.sqrt(reach * reach - miss * miss))
+				if distance < bestDistance then
+					best = model
+					bestDistance = distance
+				end
+			end
+		end
+	end
+	return best, bestDistance
+end
+
 function ProjectileService.Fire(shot: Shot)
 	nextId += 1
 	local params = RaycastParams.new()
@@ -135,13 +176,21 @@ local function step(bolt: Bolt, dt: number)
 		travel = travel.Unit * bolt.Remaining
 	end
 	local result = Workspace:Spherecast(bolt.Position, bolt.Shot.Radius, travel, bolt.Params)
-	if not result then
+	local body, bodyDistance = bigBodyOnPath(bolt, travel)
+	local target: Model?
+	local distance: number
+	if body and (not result or bodyDistance < result.Distance) then
+		target = body
+		distance = bodyDistance
+	elseif result then
+		target = targetOf(result.Instance)
+		distance = result.Distance
+	else
 		bolt.Position += travel
 		bolt.Remaining -= travel.Magnitude
 		return
 	end
-	local contact = bolt.Position + travel.Unit * result.Distance
-	local target = targetOf(result.Instance)
+	local contact = bolt.Position + travel.Unit * distance
 	if target then
 		local info = TargetService.Get(target)
 		if info and info.Team ~= bolt.Shot.Team and bolt.Shot.OnHit(target, contact) then
@@ -149,7 +198,7 @@ local function step(bolt: Bolt, dt: number)
 			table.insert(bolt.Ignore, target)
 			bolt.Params.FilterDescendantsInstances = bolt.Ignore
 			bolt.Position = contact
-			bolt.Remaining -= result.Distance
+			bolt.Remaining -= distance
 			return
 		end
 	end

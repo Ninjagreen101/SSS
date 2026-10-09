@@ -94,7 +94,7 @@ local function undertowBurst(player: Player, attacker: Model, center: Vector3)
 		Color = if tide then tide.Color else Color3.fromHex("#3FE0D0"),
 	})
 	for model, target in TargetService.GetAll() do
-		if target.Team ~= "Players" and TargetService.IsAlive(target) and (target.Root.Position - center).Magnitude <= p.Radius then
+		if target.Team ~= "Players" and TargetService.IsAlive(target) and TargetService.DistanceTo(target, center) <= p.Radius then
 			CombatService.SpellHit(attacker, model, {
 				Damage = weaponDamage * p.DamageFraction,
 				Posture = 0,

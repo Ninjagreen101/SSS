@@ -173,6 +173,66 @@ function TargetService.PositionAt(target: Target, time: number): Vector3
 	return if sample then sample.Position else target.Root.Position
 end
 
+-- HIT SHAPE ------------------------------------------------------------------
+-- A target's body is a vertical capsule: the segment root ± (0, HitHeight, 0)
+-- thickened by HitRadius. With both at 0 (everyone but big bodies) it is just
+-- the root point, and every helper below reduces exactly to the root position
+-- or plain distance to it. `at` replaces the root position (a rewound one,
+-- from PositionAt).
+
+-- The point on the target's hit axis closest to `point`.
+function TargetService.AxisPoint(target: Target, point: Vector3, at: Vector3?): Vector3
+	local center = at or target.Root.Position
+	local height = target.HitHeight
+	if height <= 0 then
+		return center
+	end
+	return Vector3.new(center.X, math.clamp(point.Y, center.Y - height, center.Y + height), center.Z)
+end
+
+-- The point on the target's hit axis closest to the segment `from` -> `to`.
+function TargetService.AxisPointToSegment(target: Target, from: Vector3, to: Vector3, at: Vector3?): Vector3
+	local center = at or target.Root.Position
+	local height = target.HitHeight
+	if height <= 0 then
+		return center
+	end
+	-- Closest points of two segments: the path (from + d1*s) and the axis
+	-- (bottom + d2*t), s and t in [0, 1].
+	local bottom = center - Vector3.new(0, height, 0)
+	local d1 = to - from
+	local d2 = Vector3.new(0, height * 2, 0)
+	local r = from - bottom
+	local a = d1:Dot(d1)
+	local e = d2:Dot(d2)
+	local f = d2:Dot(r)
+	local t: number
+	if a <= 1e-9 then
+		t = math.clamp(f / e, 0, 1)
+	else
+		local c = d1:Dot(r)
+		local b = d1:Dot(d2)
+		local denom = a * e - b * b
+		local s = if denom > 1e-9 then math.clamp((b * f - c * e) / denom, 0, 1) else 0
+		t = (b * s + f) / e
+		if t < 0 then
+			t = 0
+		elseif t > 1 then
+			t = 1
+		end
+	end
+	return bottom + d2 * t
+end
+
+-- Distance from `point` to the target's body surface (0 inside it). For a
+-- target without hit size this is exactly (root.Position - point).Magnitude.
+function TargetService.DistanceTo(target: Target, point: Vector3, at: Vector3?): number
+	if target.HitRadius <= 0 and target.HitHeight <= 0 then
+		return ((at or target.Root.Position) - point).Magnitude
+	end
+	return math.max(0, (TargetService.AxisPoint(target, point, at) - point).Magnitude - target.HitRadius)
+end
+
 -- How far back to rewind targets for a hit thrown by this attacker.
 function TargetService.RewindFor(attacker: Target): number
 	local player = attacker.Player

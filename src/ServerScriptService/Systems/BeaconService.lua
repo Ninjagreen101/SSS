@@ -189,7 +189,7 @@ local function sentryTarget(state: State, root: BasePart): Model?
 		and lastTarget
 		and lastTarget.Team ~= "Players"
 		and TargetService.IsAlive(lastTarget)
-		and (lastTarget.Root.Position - root.Position).Magnitude <= B.Sentry.Range
+		and TargetService.DistanceTo(lastTarget, root.Position) <= B.Sentry.Range
 	then
 		return last
 	end
@@ -197,7 +197,7 @@ local function sentryTarget(state: State, root: BasePart): Model?
 	local bestDistance = B.Sentry.Range
 	for model, target in TargetService.GetAll() do
 		if target.Team ~= "Players" and TargetService.IsAlive(target) then
-			local distance = (target.Root.Position - root.Position).Magnitude
+			local distance = TargetService.DistanceTo(target, root.Position)
 			if distance < bestDistance then
 				best = model
 				bestDistance = distance
@@ -209,7 +209,8 @@ end
 
 local function fireSentry(player: Player, character: Model, root: BasePart, target: Model, index: number, total: number)
 	local targetRoot = rootOf(target)
-	if not targetRoot then
+	local info = TargetService.Get(target)
+	if not targetRoot or not info then
 		return
 	end
 	local data = DataService.GetData(player)
@@ -235,7 +236,8 @@ local function fireSentry(player: Player, character: Model, root: BasePart, targ
 		Owner = character,
 		Team = "Players",
 		Origin = origin,
-		Direction = targetRoot.Position - origin,
+		-- At the nearest point of the body (its root, unless it is a big one).
+		Direction = TargetService.AxisPoint(info, origin, targetRoot.Position) - origin,
 		Speed = B.Sentry.Speed,
 		Radius = B.Sentry.Radius,
 		Range = B.Sentry.Range + 6,

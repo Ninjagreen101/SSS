@@ -415,8 +415,10 @@ local function payOut(fight: Fight, player: Player): boolean
 		DataService.SaveNow(player)
 	end
 	AnalyticsService.Progression(player, "Guardian", "Complete", tonumber(def.Floor) or 0, fight.GuardianId)
-	-- No floor beyond this one is reachable yet: the way is open, its stair comes later.
-	Net.Fire("Notify", player, "Guardians.NextFloorPending", { name = Strings.Guardians.Floors[def.NextFloor] or def.NextFloor }, "Info")
+	if first then
+		-- No floor beyond this one is reachable yet: the way is open, its stair comes later.
+		Net.Fire("Notify", player, "Guardians.NextFloorPending", { name = Strings.Guardians.Floors[def.NextFloor] or def.NextFloor }, "Info")
+	end
 	return first
 end
 
@@ -1095,6 +1097,11 @@ local function onChallenge(gate: BasePart, player: Player)
 	local gathering = gatherings[gate]
 	if gathering and table.find(gathering.Players, player) then
 		fireGather(gathering, player)
+		return
+	end
+	-- A full gathering turns the joiner away before they leave any other one.
+	if gathering and #gathering.Players >= G.MaxPlayers then
+		Net.Fire("Notify", player, "Guardians.GatheringFull", { max = G.MaxPlayers }, "Warning")
 		return
 	end
 	local other = playerGathering[player]
