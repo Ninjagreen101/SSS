@@ -9,7 +9,9 @@
 	- Each Company is a record in DataStore Config.Social.Company.DataStore, key "c_<id>" (shape in
 	  Rules), written only with UpdateAsync (Store: pcall, request budget, retries with backoff).
 	  Every rule is re-checked inside the transform against the newest record, so two servers
-	  acting at once can't break a rank rule or overfill the chest.
+	  acting at once can't break a rank rule or overfill the chest. Every write carries an op id
+	  kept in the record (Rules.FindOp), so a retry after a request that errored but committed
+	  reuses that commit instead of depositing, withdrawing or paying twice.
 	- Names are unique through an index key "n_<lowercase name>" claimed with UpdateAsync after the
 	  name passes Rules.CleanName and TextService filtering; disbanding releases it.
 	- Members' profiles hold Social.CompanyId, a pointer only: the record's member list is the
@@ -717,19 +719,23 @@ local function releaseName(key: string, id: string)
 	end
 end
 
--- A create that couldn't be paid for: tombstone the record and free the name.
-local function rollbackCreate(id: string, nameKey: string)
+-- A create that failed or couldn't be paid for: tombstone the record if create `opId` wrote it
+-- (never someone else's record) and free the name.
+local function rollbackCreate(id: string, nameKey: string, opId: string)
 	local ok, _, why = store.Update(Rules.RecordKey(id), function(old: any): (any, string?)
 		local record = Rules.Sanitize(old)
-		if not record then
+		if not record or not Rules.FindOp(record, opId) then
 			return nil, "NotFound"
+		end
+		if record.Disbanded then
+			return nil, "Done"
 		end
 		record.Disbanded = true
 		record.Members = {}
 		record.Version += 1
 		return record, nil
 	end)
-	if not ok then
+	if not ok and why ~= "NotFound" and why ~= "Done" then
 		log:Error(`could not roll back unpaid Company {id}: {tostring(why)}`)
 	end
 	cache[id] = nil
@@ -821,14 +827,19 @@ local function create(player: Player, rawName: string, emblem: number)
 				existing = prior -- an earlier attempt of this create committed
 				return nil, "Applied"
 			end
-			return nil, "Failed" -- id collision
+			return nil, "Collision" -- another Company has this id
 		end
 		return fresh, nil
 	end)
 	local record = if created then Rules.Sanitize(value) elseif createWhy == "Applied" then existing else nil
 	if not record then
-		releaseName(nameKey, id)
-		return fail(player, createWhy)
+		if createWhy == "Collision" then
+			releaseName(nameKey, id)
+		else
+			-- Failed or out of budget: an attempt may still have committed. Undo it if so.
+			task.spawn(rollbackCreate, id, nameKey, opId)
+		end
+		return fail(player, "Failed")
 	end
 
 	-- The record is committed: take the gold now. No yield from here to the profile pointer.
@@ -841,7 +852,7 @@ local function create(player: Player, rawName: string, emblem: number)
 			-- Paid but the pointer couldn't be written: give the gold back.
 			DataService.Increment(player, { "Currencies", "Gold" }, Company.CreateCost, 0, Config.Economy.MaxGold)
 		end
-		task.spawn(rollbackCreate, id, nameKey)
+		task.spawn(rollbackCreate, id, nameKey, opId)
 		return fail(player, payWhy)
 	end
 	remember(record)
@@ -977,22 +988,16 @@ local function manage(player: Player, action: string, target: string)
 		return fail(player, "NotMember")
 	end
 	local actorId, targetId = userKey(player), tostring(targetNumber)
-	local newRank: string? = nil
-	local targetName = target
-	local ok, _, why = update(id, function(r: Record): (boolean, string?)
-		local member = r.Members[targetId]
-		targetName = if member then member.Name else target
+	local _, before = fetch(id)
+	local known = before and before.Members[targetId]
+	local targetName = if known then known.Name else target
+	local ok, _, why, out = update(id, function(r: Record): (boolean, string?, any)
 		if action == "Kick" then
 			return Rules.Kick(r, actorId, targetId)
+		elseif action == "Promote" then
+			return Rules.Promote(r, actorId, targetId)
 		end
-		local done, reason, rank
-		if action == "Promote" then
-			done, reason, rank = Rules.Promote(r, actorId, targetId)
-		else
-			done, reason, rank = Rules.Demote(r, actorId, targetId)
-		end
-		newRank = rank
-		return done, reason
+		return Rules.Demote(r, actorId, targetId)
 	end, player)
 	if not ok then
 		return fail(player, why)
@@ -1000,7 +1005,7 @@ local function manage(player: Player, action: string, target: string)
 	if action == "Kick" then
 		notify(player, "Toasts.Kicked", { name = targetName }, "Info")
 	else
-		notify(player, "Toasts.RankChanged", { name = targetName, rank = rankName(newRank or "") }, "Info")
+		notify(player, "Toasts.RankChanged", { name = targetName, rank = rankName(if type(out) == "string" then out else "") }, "Info")
 	end
 end
 
@@ -1009,16 +1014,15 @@ local function disband(player: Player)
 	if not id then
 		return fail(player, "NotInCompany")
 	end
-	local name = ""
-	local ok, _, why = update(id, function(r: Record): (boolean, string?)
-		name = r.Name
-		return Rules.Disband(r, userKey(player))
+	local actorId = userKey(player)
+	local ok, record, why = update(id, function(r: Record): (boolean, string?)
+		return Rules.Disband(r, actorId)
 	end, player)
-	if not ok then
+	if not ok or not record then
 		return fail(player, why)
 	end
-	releaseName(Rules.NameKey(name), id)
-	notify(player, "Toasts.DisbandedYou", { name = name }, "Info")
+	releaseName(Rules.NameKey(record.Name), id)
+	notify(player, "Toasts.DisbandedYou", { name = record.Name }, "Info")
 end
 
 local function setEmblem(player: Player, emblem: number)

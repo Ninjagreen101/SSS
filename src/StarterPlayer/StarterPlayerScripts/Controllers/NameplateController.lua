@@ -5,6 +5,7 @@
 
 	        Lv 7  Mirabel
 	      ~ Parry Master ~        (smaller gold serif: the title they chose, attribute Title)
+	       [emblem] Tide Wardens  (their Climber Company, attributes CompanyName / CompanyEmblem)
 
 	- Name = DisplayName, level from the player attribute Level, title from the attribute Title
 	  (a Strings path such as "Achievements.Titles.ParryMaster"; "" = none).
@@ -28,6 +29,9 @@ local UI = script.Parent.Parent.UI
 local UITheme = require(UI.UITheme)
 local Create = require(UI.Create)
 local QuestText = require(UI.QuestText)
+local Icons = require(UI.Icons)
+
+local CompanyController = require(script.Parent.CompanyController)
 
 local A = Attributes.Names
 local C = UITheme.Colors
@@ -40,6 +44,9 @@ type Plate = {
 	Name: TextLabel,
 	Level: TextLabel,
 	Title: TextLabel,
+	CompanyLine: Frame,
+	CompanyIcon: ImageLabel,
+	Company: TextLabel,
 	Faded: number, -- last applied fade (0 = opaque, 1 = hidden)
 }
 
@@ -124,7 +131,46 @@ local function buildPlate(): Plate
 		Visible = false,
 		Parent = holder,
 	})
-	return { Gui = gui, Name = name, Level = level, Title = title, Faded = -1 }
+	-- The Company line (Phase 12): emblem icon and name, shown when they belong to one.
+	local companyLine: Frame = Create.new("Frame", {
+		Name = "CompanyLine",
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, 0, 0, 16),
+		LayoutOrder = 3,
+		Visible = false,
+		Parent = holder,
+	})
+	Create.List(companyLine, Enum.FillDirection.Horizontal, 4, Enum.HorizontalAlignment.Center, Enum.VerticalAlignment.Center)
+	local companyIcon = Icons.new("Guard", {
+		Size = UDim2.fromOffset(14, 14),
+		Color = C.Accent,
+		LayoutOrder = 1,
+		Parent = companyLine,
+	})
+	local company: TextLabel = Create.new("TextLabel", {
+		Name = "Company",
+		BackgroundTransparency = 1,
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, 16),
+		FontFace = UITheme.Fonts.BodyMedium,
+		TextSize = 13,
+		TextColor3 = C.Accent,
+		TextStrokeColor3 = Color3.new(0, 0, 0),
+		TextStrokeTransparency = 0.4,
+		Text = "",
+		LayoutOrder = 2,
+		Parent = companyLine,
+	})
+	return {
+		Gui = gui,
+		Name = name,
+		Level = level,
+		Title = title,
+		CompanyLine = companyLine,
+		CompanyIcon = companyIcon,
+		Company = company,
+		Faded = -1,
+	}
 end
 
 local function takePlate(): Plate
@@ -159,6 +205,14 @@ local function fill(watch: Watch)
 	local title = QuestText.TitleFromPath(who:GetAttribute(A.Title))
 	plate.Title.Text = if title then title else ""
 	plate.Title.Visible = title ~= nil
+	local companyName = who:GetAttribute(A.CompanyName)
+	local emblem = who:GetAttribute(A.CompanyEmblem)
+	local inCompany = type(companyName) == "string" and companyName ~= ""
+	plate.Company.Text = if inCompany then companyName :: string else ""
+	plate.CompanyLine.Visible = inCompany
+	if inCompany then
+		Icons.Apply(plate.CompanyIcon, CompanyController.EmblemIcon(if type(emblem) == "number" then emblem else 0))
+	end
 end
 
 local function disconnectAll(list: { RBXScriptConnection })
@@ -223,6 +277,11 @@ local function watchPlayer(who: Player)
 	table.insert(watch.Connections, who:GetAttributeChangedSignal(A.PartyId):Connect(function()
 		fill(watch)
 	end))
+	for _, attribute in { A.CompanyName, A.CompanyEmblem } do
+		table.insert(watch.Connections, who:GetAttributeChangedSignal(attribute):Connect(function()
+			fill(watch)
+		end))
+	end
 	table.insert(watch.Connections, who:GetPropertyChangedSignal("DisplayName"):Connect(function()
 		fill(watch)
 	end))
@@ -251,6 +310,9 @@ local function applyFade(plate: Plate, fade: number)
 	plate.Level.TextStrokeTransparency = 0.35 + fade * 0.65
 	plate.Title.TextTransparency = fade
 	plate.Title.TextStrokeTransparency = 0.3 + fade * 0.7
+	plate.Company.TextTransparency = fade
+	plate.Company.TextStrokeTransparency = 0.4 + fade * 0.6
+	plate.CompanyIcon.ImageTransparency = fade
 end
 
 local function refreshFades()
