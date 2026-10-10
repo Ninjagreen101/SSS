@@ -116,6 +116,12 @@ local template: Types.PlayerData = {
 	Achievements = {},
 	AchievementProgress = {}, -- achievement id -> events counted so far (until unlocked)
 	Title = "", -- achievement id whose title is shown ("" = none)
+	Social = {
+		CompanyId = "", -- Climber Company id ("" = none); the Company record lives in its own DataStore
+		Emotes = {}, -- emote wheel slot ("1".."8") -> emote id
+		LootMode = "Personal", -- preferred party loot setting when this player leads
+		Blocked = {}, -- UserId (as string) -> true: no trade / party invites from them
+	},
 	Map = {
 		Explored = {}, -- floor id -> fog-of-war bitset as hex (MapService)
 		Pins = {}, -- floor id -> { { X, Z, Icon } }

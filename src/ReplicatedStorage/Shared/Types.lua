@@ -194,6 +194,12 @@ export type PlayerData = {
 	Achievements: { [string]: number }, -- achievement id -> unlock unix time
 	AchievementProgress: { [string]: number }, -- achievement id -> count toward it (until unlocked)
 	Title: string, -- achievement id whose title is shown ("" = none)
+	Social: {
+		CompanyId: string,
+		Emotes: { [string]: string },
+		LootMode: string,
+		Blocked: { [string]: boolean },
+	},
 	Map: {
 		-- floor id -> fog of war (MapService): one hex digit per 4 cells of the Config.Quests.Map grid;
 		-- cell i = row * Cells + col (row 0 = the map square's min-Z edge, col 0 = its min-X edge) is

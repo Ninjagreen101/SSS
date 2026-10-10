@@ -192,4 +192,12 @@ Migrations.Steps[6] = function(data: { [string]: any })
 	data.Tutorial = { Step = 0, Done = true, Skipped = skipped }
 end
 
+-- v7 (Phase 12): the Social branch (Company, emote wheel, party loot preference, blocked list) is
+-- new; Reconcile adds it from the Template. A malformed one is dropped so Reconcile refills it.
+Migrations.Steps[7] = function(data: { [string]: any })
+	if data.Social ~= nil and type(data.Social) ~= "table" then
+		data.Social = nil
+	end
+end
+
 return Migrations

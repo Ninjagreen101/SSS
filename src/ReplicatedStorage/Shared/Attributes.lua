@@ -112,6 +112,10 @@ local Attributes = {
 	MobBlow = "MobBlow",
 
 	Title = "Title", -- player: Strings path of the shown title ("" = none)
+	PartyId = "PartyId", -- player: party id ("" = none), for nameplates and minimap
+	CompanyName = "CompanyName", -- player: Company name shown on the nameplate ("" = none)
+	CompanyEmblem = "CompanyEmblem", -- player: emblem index (0 = none)
+	Emote = "Emote", -- player: emote id playing now ("" = none), so other clients can react
 	NpcId = "NpcId",
 	PointId = "PointId",
 	Radius = "Radius",

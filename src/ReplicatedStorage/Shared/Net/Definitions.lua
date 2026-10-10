@@ -85,6 +85,30 @@ local Definitions: { [string]: RemoteDef } = {
 	RequestTutorial = toServer({ S.OneOf({ "Skip", "Continue" }) }),
 	RequestWaystoneTravel = toServer({ S.Id(48) }), -- target waystone id: travel from the waystone you stand at (map)
 
+	-- Multiplayer (Phase 12, docs/PHASE12_MULTIPLAYER.md). Every rule is re-checked on the server.
+	RequestParty = toServer({
+		S.OneOf({ "Invite", "Accept", "Decline", "Leave", "Kick", "Promote", "Disband", "Raid", "LootMode" }),
+		S.String(0, 48), -- target UserId as a string, or the loot mode
+	}),
+	RequestPing = toServer({ S.Vector3(1e5), S.OneOf({ "Here", "Danger", "Loot", "Go" }) }),
+	RequestFinder = toServer({
+		S.OneOf({ "List", "Unlist", "Join", "Refresh" }),
+		S.String(0, 48), -- activity (List) or listing id (Join)
+		S.String(0, 80), -- note (List; filtered with TextService on the server)
+	}),
+	RequestTrade = toServer({
+		S.OneOf({ "Request", "Accept", "Decline", "Cancel", "SetItem", "RemoveItem", "SetGold", "Lock", "Unlock", "Confirm" }),
+		S.String(0, 48), -- target UserId (Request) or item uid (SetItem / RemoveItem)
+		S.Integer(0, 1000000000), -- count (SetItem) or gold (SetGold)
+	}),
+	RequestCompany = toServer({
+		S.OneOf({ "Create", "Invite", "Accept", "Decline", "Leave", "Kick", "Promote", "Demote", "Disband", "SetEmblem", "Deposit", "Withdraw", "Refresh" }),
+		S.String(0, 48), -- name (Create), target UserId, or item uid (Deposit / Withdraw)
+		S.Integer(0, 1000000), -- emblem index or count
+	}),
+	RequestSetEmoteSlot = toServer({ S.Integer(1, 8), S.String(0, 32) }), -- slot, emote id ("" clears)
+	RequestInspect = toServer({ S.Integer(1, 1e12) }), -- target UserId
+
 	-- Server -> client (results)
 	DataSnapshot = toClient(), -- full replica of the player's own saved data
 	DataChanged = toClient(), -- { Path, Value } list
@@ -114,6 +138,17 @@ local Definitions: { [string]: RemoteDef } = {
 	QuestEvent = toClient(), -- (kind "Accepted"|"Progress"|"Ready"|"Completed"|"Abandoned"|"Rolled", questId, payload)
 	AchievementUnlocked = toClient(), -- (achievementId)
 	TutorialStep = toClient(), -- (step, payload)
+
+	-- Multiplayer (Phase 12).
+	PartyState = toClient(), -- (state | nil) your party: members, leader, raid, loot mode
+	PartyInvite = toClient(), -- (fromUserId, fromName, expiresAt)
+	Ping = toClient(), -- (fromUserId, position, kind, expiresAt) a party member's marker
+	FinderListings = toClient(), -- ({ listings }) the server's party finder board
+	TradeState = toClient(), -- (state | nil) the trade window for both sides
+	TradeRequest = toClient(), -- (fromUserId, fromName, expiresAt)
+	CompanyState = toClient(), -- (state | nil) your Company: name, emblem, ranks, members, storage, quests
+	CompanyInvite = toClient(), -- (companyId, companyName, fromName, expiresAt)
+	InspectResult = toClient(), -- (userId, payload | nil) another player's gear and stats
 
 	-- Guardians (Phase 10). Payloads per kind: docs/PHASE10_GUARDIAN.md section 3.
 	GuardianEvent = toClient(), -- (kind "Gather"|"Intro"|"Phase"|"Tide"|"Victory"|"Wipe"|"Banner", payload)
