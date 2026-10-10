@@ -25,7 +25,9 @@
 	  failure restores both profiles), unlocked and saved straight away.
 	- Cancels: explicit Cancel (closing the window), leaving, the profile
 	  being released, dying or respawning, entering combat, moving further
-	  apart than MaxDistance (which also covers teleports), starting a run.
+	  apart than MaxDistance (which also covers teleports), starting a run
+	  (InstanceService.Begin cancels at once; a player being sent to another
+	  server counts as busy).
 	- TradeState goes to both players after every change: both offers with
 	  full item instances (tooltips), gold, lock and confirm flags, the phase
 	  and the countdown end (server time). TradeState(nil) closes the window.
@@ -52,6 +54,7 @@ local DungeonService = require(script.Parent.DungeonService)
 local GuardianService = require(script.Parent.GuardianService)
 local QuestService = require(script.Parent.QuestService)
 local TutorialService = require(script.Parent.TutorialService)
+local InstanceService = require(script.Parent.InstanceService)
 local TradeRules = require(script.Parent.TradeRules)
 
 type PlayerData = Types.PlayerData
@@ -134,7 +137,10 @@ local function factsOf(player: Player, inSession: boolean): TradeRules.Facts
 		Loaded = DataService.IsLoaded(player),
 		Alive = humanoid ~= nil and humanoid.Health > 0 and root ~= nil,
 		InCombat = inCombat(player),
-		Busy = DungeonService.GetRun(player) ~= nil or GuardianService.IsInFight(player) or TutorialService.IsActive(player),
+		Busy = DungeonService.GetRun(player) ~= nil
+			or GuardianService.IsInFight(player)
+			or TutorialService.IsActive(player)
+			or InstanceService.IsTeleporting(player),
 		Trading = not inSession and sessions[player] ~= nil,
 		TradeLocked = DataService.IsTradeLocked(player),
 		InTown = root ~= nil and QuestService.RegionAt(root.Position) == TOWN_REGION,
@@ -637,6 +643,7 @@ function TradeService.Init()
 end
 
 function TradeService.Start()
+	InstanceService.Leaving:Connect(TradeService.Cancel)
 	DataService.Changed:Connect(onProfileChanged)
 	DataService.ProfileReleased:Connect(onLeaving)
 	Players.PlayerRemoving:Connect(onLeaving)

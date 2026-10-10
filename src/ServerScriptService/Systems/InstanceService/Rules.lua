@@ -5,30 +5,45 @@
 	servers"). No Roblox services: tools/place/test_instances.luau runs it under Lune.
 
 	- UseReserved: whether a run may go to a reserved server at all (else the in-server copy runs).
-	- InstanceData / ParseInstance: the teleport data a party carries into an instance server.
-	  Teleport data travels through the client, so everything is re-validated on arrival.
+	- InstanceData / ParseInstance: the teleport data a party carries into an instance server
+	  (written by the sending server; Party = the source party to rebuild there). Everything is
+	  re-validated on arrival all the same.
 	- Admit: who an instance server accepts. Membership is never taken from teleport data alone:
 	  the arrival must be named in the record (set by the first valid arrival), must come from this
 	  place (SourcePlaceId, set by Roblox), and its own data must name the same run.
 	- ArrivalDecision: wait for the party, start with whoever came, or give up.
-	- ReturnData / ParseReturn / SplitReturnTo: the way home and where to arrive on the floor.
+	- ReturnData: the teleport data for the way home. It never says where to arrive: a client can
+	  teleport itself to this place with any data it likes. The destination goes in the player's
+	  profile instead (PendingReturn / TakePending / SplitReturnTo), written by the instance server.
 	- Retry / ShouldRetry / RetryDelay / ReturnDelay: retry and timing rules.
 ]]
 
 export type Mode = "Dungeon" | "Guardian"
+
+-- The party the run's players were in before the teleport (two or more of the Members).
+export type PartyData = {
+	Leader: number, -- its leader, or the oldest member going when the leader stayed behind
+	Members: { number }, -- UserIds, oldest first
+	LootMode: string,
+}
 
 export type Record = {
 	Mode: Mode,
 	Id: string,
 	Members: { number }, -- UserIds
 	ReturnPlaceId: number,
+	Party: PartyData?,
 }
 
 export type Limits = {
 	PlaceId: number, -- this place: the only one an instance may return to
 	MaxMembers: number,
 	IsKnownId: (mode: Mode, id: string) -> boolean,
+	LootModes: { string }, -- Config.Social.Party.LootModes
 }
+
+-- A profile's PendingReturn (Types.PlayerData.PendingReturn).
+export type Pending = { To: string, At: number }
 
 export type Environment = {
 	Enabled: boolean, -- Config.Social.Instances.UseReservedServers
@@ -44,6 +59,8 @@ local Rules = {}
 Rules.VERSION = 1
 Rules.MAX_ID_LENGTH = 48
 Rules.MAX_RETURN_LENGTH = 64
+-- Seconds a PendingReturn may be stamped in the future (servers' clocks differ a little).
+Rules.CLOCK_SKEW = 30
 -- Seconds before retry n (n >= 2) of a failed reserve or teleport: RETRY_BASE x (n - 1).
 Rules.RETRY_BASE = 2
 -- Teleport results worth another try; anything else (Unauthorized, GameNotFound...) won't change.
@@ -102,14 +119,54 @@ function Rules.UseReserved(env: Environment): (boolean, string)
 end
 
 -- The teleport data for a party going into an instance.
-function Rules.InstanceData(mode: Mode, id: string, userIds: { number }, returnPlaceId: number): { [string]: any }
+function Rules.InstanceData(mode: Mode, id: string, userIds: { number }, returnPlaceId: number, party: PartyData?): { [string]: any }
 	return {
 		Version = Rules.VERSION,
 		Mode = mode,
 		Id = id,
 		Members = table.clone(userIds),
 		ReturnPlaceId = returnPlaceId,
+		Party = if party then { Leader = party.Leader, Members = table.clone(party.Members), LootMode = party.LootMode } else nil,
 	}
+end
+
+-- A dense list of distinct UserIds, each one of `allowed`; nil if anything is off.
+local function userIdList(value: any, allowed: { number }): { number }?
+	if type(value) ~= "table" then
+		return nil
+	end
+	local count = arrayLength(value)
+	if not count or count == 0 then
+		return nil
+	end
+	local seen: { [number]: boolean } = {}
+	local list: { number } = {}
+	for _, userId in ipairs(value) do
+		if not isUserId(userId) or seen[userId] or not table.find(allowed, userId) then
+			return nil
+		end
+		seen[userId] = true
+		table.insert(list, userId)
+	end
+	return list
+end
+
+-- The optional Party block: two or more of the run's members, its leader among them.
+local function parseParty(raw: any, members: { number }, lootModes: { string }): (boolean, PartyData?)
+	if raw == nil then
+		return true, nil
+	end
+	if type(raw) ~= "table" then
+		return false, nil
+	end
+	local list = userIdList(raw.Members, members)
+	if not list or #list < 2 or not isUserId(raw.Leader) or not table.find(list, raw.Leader) then
+		return false, nil
+	end
+	if type(raw.LootMode) ~= "string" or not table.find(lootModes, raw.LootMode) then
+		return false, nil
+	end
+	return true, { Leader = raw.Leader, Members = list, LootMode = raw.LootMode }
 end
 
 -- Validates arriving teleport data; nil and the reason if anything is off.
@@ -146,7 +203,11 @@ function Rules.ParseInstance(raw: any, limits: Limits): (Record?, string?)
 	if not isPlaceId(returnPlaceId) or returnPlaceId ~= limits.PlaceId then
 		return nil, "ReturnPlace"
 	end
-	return { Mode = mode, Id = id, Members = list, ReturnPlaceId = returnPlaceId }, nil
+	local partyOk, party = parseParty(raw.Party, list, limits.LootModes)
+	if not partyOk then
+		return nil, "Party"
+	end
+	return { Mode = mode, Id = id, Members = list, ReturnPlaceId = returnPlaceId, Party = party }, nil
 end
 
 -- Does an instance server with this record accept this arrival? `raw` is the arrival's own data.
@@ -187,23 +248,41 @@ function Rules.SplitReturnTo(returnTo: any): (string?, string?)
 	return nil, nil
 end
 
--- The teleport data for players going home from an instance.
-function Rules.ReturnData(returnTo: string?): { [string]: any }
-	local kind = Rules.SplitReturnTo(returnTo)
-	return { Version = Rules.VERSION, ReturnTo = if kind then returnTo else nil }
+-- The teleport data for players going home from an instance: only the version. Where they arrive
+-- is never in teleport data (a client can teleport itself here carrying any data); it is the
+-- profile's PendingReturn.
+function Rules.ReturnData(): { [string]: any }
+	return { Version = Rules.VERSION }
 end
 
--- A public server reading an arrival's data: the validated ReturnTo, or nil. Only arrivals from
--- this place count (the point itself is checked against the floor by FloorService).
-function Rules.ParseReturn(raw: any, sourcePlaceId: any, placeId: number): string?
-	if type(raw) ~= "table" or raw.Version ~= Rules.VERSION then
-		return nil
+-- The PendingReturn an instance server writes into a profile before sending the player home
+-- (To "" when there is no valid destination).
+function Rules.PendingReturn(returnTo: string?, now: number): Pending
+	if Rules.SplitReturnTo(returnTo) then
+		return { To = returnTo :: string, At = now }
 	end
-	if not isPlaceId(sourcePlaceId) or sourcePlaceId ~= placeId then
-		return nil
+	return { To = "", At = 0 }
+end
+
+-- A public server reading a profile's PendingReturn: the destination ("Waystone"/"Gate", id) if it
+-- is valid and was written within `window` seconds, and the value to store back, which always
+-- clears it (it is used at most once; stale or malformed ones are dropped). `cleared` is nil when
+-- there was nothing to clear.
+function Rules.TakePending(pending: any, now: number, window: number): (string?, string?, Pending?)
+	if type(pending) ~= "table" or (pending.To == "" and pending.At == 0) then
+		return nil, nil, nil
 	end
-	local kind = Rules.SplitReturnTo(raw.ReturnTo)
-	return if kind then raw.ReturnTo else nil
+	local cleared: Pending = { To = "", At = 0 }
+	local at = pending.At
+	if type(at) ~= "number" or at ~= at then
+		return nil, nil, cleared
+	end
+	local age = now - at
+	if age > window or age < -Rules.CLOCK_SKEW then
+		return nil, nil, cleared
+	end
+	local kind, id = Rules.SplitReturnTo(pending.To)
+	return kind, id, cleared
 end
 
 -- Seconds to wait before attempt `attempt` (the first attempt waits nothing).

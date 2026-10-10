@@ -11,6 +11,8 @@
 	- Read(key): an uncached read (another server may have just written).
 	- Both are pcall-guarded, wait (a bounded time) for request budget before each call, and retry
 	  failed calls with doubling backoff. Out of budget or out of attempts = "Busy" / "Failed".
+	  An Update only says "Busy" when no request was ever sent (nothing can have been written);
+	  out of budget after a failed attempt is "Failed" (that attempt may have committed).
 
 	The backend is the real DataStore in a published game, or Store.Memory(): an in-memory
 	DataStore used in Studio without API access and by tools/place/test_company.luau, with hooks
@@ -73,7 +75,7 @@ function Store.new(backend: Backend, options: Options): Store
 	local function update(key: string, mutate: (old: any) -> (any, string?)): (boolean, any, string?)
 		for attempt = 1, options.Attempts do
 			if not waitForBudget("Update") then
-				return false, nil, "Busy"
+				return false, nil, if attempt == 1 then "Busy" else "Failed"
 			end
 			local refused: string? = nil
 			local ok, result = pcall(backend.Update, key, function(old: any): any

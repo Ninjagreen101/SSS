@@ -200,6 +200,13 @@ export type PlayerData = {
 		LootMode: string,
 		Blocked: { [string]: boolean },
 	},
+	-- The way home from a reserved run (InstanceService, Phase 12): written by the instance server
+	-- before it teleports the player, read once by the next public server. To = "Waystone:<id>" or
+	-- "Gate:<GuardianId>" ("" = none), At = unix time it was written.
+	PendingReturn: {
+		To: string,
+		At: number,
+	},
 	Map: {
 		-- floor id -> fog of war (MapService): one hex digit per 4 cells of the Config.Quests.Map grid;
 		-- cell i = row * Cells + col (row 0 = the map square's min-Z edge, col 0 = its min-X edge) is

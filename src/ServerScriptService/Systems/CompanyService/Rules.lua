@@ -669,6 +669,38 @@ function Rules.StorageRemovePlaced(record: Record, placed: { Placed }): (boolean
 end
 
 -- Total count of `defId` in the chest (tests and logs).
+export type WriteOutcome = "Committed" | "Refused" | "Unknown" -- Unknown: may or may not have committed
+export type DepositSteps = {
+	Take: () -> (boolean, Reason?), -- out of the depositor's bag (the live profile)
+	Persist: () -> boolean, -- a save of that bag has committed
+	Write: () -> (WriteOutcome, Reason?), -- into the chest (UpdateAsync)
+	GiveBack: () -> boolean, -- back into the bag
+}
+export type DepositResult = "Deposited" | "Refused" | "Lost"
+
+-- The order of a deposit, so an item can be lost but never duplicated: it leaves the bag and that
+-- is saved BEFORE the chest write. A chest write that surely didn't happen gives it back; one with
+-- an unknown outcome doesn't. "Lost" (logged by the caller) when the item is in neither place: a
+-- refused give-back or an unknown write; a server crash between the save and the chest write
+-- loses it the same way, with nothing left to log.
+function Rules.RunDeposit(steps: DepositSteps): (DepositResult, Reason?)
+	local taken, why = steps.Take()
+	if not taken then
+		return "Refused", why
+	end
+	if not steps.Persist() then
+		return if steps.GiveBack() then "Refused" else "Lost", "Failed"
+	end
+	local outcome, reason = steps.Write()
+	if outcome == "Committed" then
+		return "Deposited", nil
+	end
+	if outcome == "Refused" and steps.GiveBack() then
+		return "Refused", reason
+	end
+	return "Lost", reason or "Failed"
+end
+
 function Rules.StorageCount(record: Record, defId: string): number
 	local total = 0
 	for _, entry in record.Storage do

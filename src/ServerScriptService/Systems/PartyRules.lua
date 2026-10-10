@@ -116,6 +116,37 @@ function PartyRules.AddMember(party: Party, userId: number, limits: Limits): (bo
 	return true, nil
 end
 
+-- Instance servers: rebuilds a run's party from the players there. `party` is the one the run
+-- already has (nil before it exists); `loose` are present members of the source party who are in
+-- no party, in the source party's order. A new party needs two or more and is led by `leaderId`
+-- when they are among them (else the first). Grows into a raid when it outgrows a party; anyone
+-- past the raid cap stays out. Returns the party (nil if none yet) and the UserIds added to it.
+function PartyRules.Regroup(party: Party?, id: string, loose: { number }, leaderId: number, lootMode: string, limits: Limits): (Party?, { number })
+	local added: { number } = {}
+	local group = party
+	if not group then
+		if #loose < 2 then
+			return nil, added
+		end
+		local leader = if table.find(loose, leaderId) then leaderId else loose[1]
+		group = PartyRules.new(id, leader, lootMode)
+		table.insert(added, leader)
+	end
+	local live = group :: Party
+	for _, userId in loose do
+		if PartyRules.IsMember(live, userId) then
+			continue
+		end
+		if not live.Raid and #live.Members >= limits.MaxMembers then
+			live.Raid = true
+		end
+		if PartyRules.AddMember(live, userId, limits) then
+			table.insert(added, userId)
+		end
+	end
+	return live, added
+end
+
 -- Removes a member. Returns whether they were in it, and whether the party must now disband
 -- (fewer than two members left). A leaving leader hands over to the oldest remaining member.
 function PartyRules.RemoveMember(party: Party, userId: number): (boolean, boolean)

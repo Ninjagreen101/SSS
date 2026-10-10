@@ -38,6 +38,7 @@ local AnalyticsService = require(script.Parent.AnalyticsService)
 local TargetService = require(script.Parent.TargetService)
 local WeaponService = require(script.Parent.WeaponService)
 local GameEvents = require(script.Parent.GameEvents)
+local InstanceService = require(script.Parent.InstanceService)
 
 local A = Attributes.Names
 local log = Log.new("CharacterService")
@@ -303,6 +304,14 @@ function CharacterService.Init()
 	PhysicsService:RegisterCollisionGroup(PLAYER_GROUP)
 	PhysicsService:CollisionGroupSetCollidable(PLAYER_GROUP, PLAYER_GROUP, Config.World.PlayerCollision)
 	Net.On("RequestRespawn", onRespawnRequest)
+	-- Instance servers: members held without a character until the run space existed rise now.
+	InstanceService.Prepared:Connect(function(players: { Player })
+		for _, player in players do
+			if not player.Character then
+				task.spawn(spawnCharacter, player)
+			end
+		end
+	end)
 end
 
 function CharacterService.Start()

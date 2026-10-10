@@ -13,8 +13,12 @@
 --     members who belonged when a quest completed
 --   - the store: a conflicting write mid-UpdateAsync makes the transform re-run on the newer
 --     record (rules re-checked), failed requests retry with doubling backoff, out of attempts =
---     "Failed", out of budget = "Busy", a mutate that errors writes nothing, and an attempt that
---     commits but errors is recognised on retry by its op id (no double deposit)
+--     "Failed", out of budget before any request = "Busy" (after one = "Failed"), a mutate that
+--     errors writes nothing, and an attempt that commits but errors is recognised on retry by its
+--     op id (no double deposit)
+--   - the deposit order (Rules.RunDeposit): bag out and saved before the chest write, given back
+--     only when the write surely didn't happen; a crash at any point can lose the item but never
+--     leaves two copies
 --   - every refusal reason has player text in Strings.Company.Errors
 -- Every check is an assert; the run prints a summary.
 --
@@ -662,6 +666,19 @@ case("out of request budget = Busy", function()
 	end)
 	fails("Busy", ok, reason)
 	assert(#waits >= 1, "waited for budget before giving up")
+	-- out of budget only after an attempt errored: that attempt may have committed, so not "Busy"
+	local budget = 1
+	backend.Budget = function(_kind)
+		return budget
+	end
+	backend.Update = function()
+		budget = 0
+		error("timed out after commit?")
+	end
+	ok, _, reason = newStore(backend).Update("c_x", function(old)
+		return old
+	end)
+	fails("Failed", ok, reason)
 end)
 
 case("an attempt that commits then errors is not applied twice", function()
@@ -703,6 +720,159 @@ case("an attempt that commits then errors is not applied twice", function()
 		Rules.PushOp(record, "x" .. index, nil)
 	end
 	assert(#record.Ops == Rules.OpsKept and Rules.FindOp(record, "x1") == nil and Rules.FindOp(record, "x" .. (Rules.OpsKept + 5)))
+end)
+
+-- DEPOSIT ORDER ------------------------------------------------------------------------------
+
+-- One deposit of one item through Rules.RunDeposit, against a model of the depositor's bag (live,
+-- and as last saved: what survives a crash) and the chest (a memory DataStore). `plan` scripts the
+-- steps: Take / Persist / GiveBack = false to fail them; Write = "Committed", "Refused" (rules
+-- refuse), "LostReply" (commits, every reply lost, the op is then found by a read), "Down" (every
+-- request fails, the read too: unknown) or "DownCommitted" (as Down, but one attempt committed).
+-- `crashAt` stops the server just before that step. Returns the result, the reason, the steps run
+-- and how many copies exist afterwards (live bag + chest, or saved bag + chest after a crash).
+local MOVED = 4
+local function depositRun(plan, crashAt: string?)
+	local memory = Store.Memory()
+	local key = Rules.RecordKey("abcdefghjk")
+	memory.Data[key] = deepCopy(company())
+	local outage, lostReplies = false, 0
+	local backend = table.clone(memory.Backend)
+	backend.Update = function(k, transform)
+		if outage == "before" then
+			error("DataStore down")
+		end
+		local result = memory.Backend.Update(k, transform)
+		if outage == "after" or lostReplies > 0 then
+			lostReplies -= 1
+			error("reply lost after commit")
+		end
+		return result
+	end
+	backend.Read = function(k)
+		if outage then
+			error("DataStore down")
+		end
+		return memory.Backend.Read(k)
+	end
+	local store = newStore(backend, 2)
+	local bag = { Live = MOVED, Saved = MOVED }
+	local order = {}
+	local function step(name: string, body)
+		return function()
+			if crashAt == name then
+				error("server crash", 0)
+			end
+			table.insert(order, name)
+			return body()
+		end
+	end
+	local result, why = nil, nil
+	local ran, err = pcall(function()
+		result, why = Rules.RunDeposit({
+			Take = step("Take", function()
+				if plan.Take == false then
+					return false, "Missing"
+				end
+				bag.Live -= MOVED
+				return true, nil
+			end),
+			Persist = step("Persist", function()
+				if plan.Persist == false then
+					return false
+				end
+				bag.Saved = bag.Live
+				return true
+			end),
+			Write = step("Write", function()
+				-- what CompanyService's Write step does: one op id, a read to settle "Failed"
+				local opId = "deposit-op"
+				if plan.Write == "Refused" then
+					return "Refused", "StorageFull"
+				end
+				lostReplies = if plan.Write == "LostReply" then 2 else 0
+				outage = if plan.Write == "Down" then "before" elseif plan.Write == "DownCommitted" then "after" else false
+				local ok, _, reason = store.Update(key, function(old)
+					local record = Rules.Sanitize(old)
+					if record and Rules.FindOp(record, opId) then
+						return nil, "Applied"
+					end
+					local added, addWhy = Rules.StorageAdd(record, "3", item(MATERIAL, MOVED), MOVED)
+					if not added then
+						return nil, addWhy
+					end
+					Rules.PushOp(record, opId, nil)
+					return record, nil
+				end)
+				if ok or reason == "Applied" then
+					return "Committed", nil
+				end
+				if reason ~= "Failed" then
+					return "Refused", reason
+				end
+				local read, raw = store.Read(key)
+				if not read then
+					return "Unknown", reason
+				end
+				local current = Rules.Sanitize(raw)
+				if current and Rules.FindOp(current, opId) then
+					return "Committed", nil
+				end
+				return "Refused", reason
+			end),
+			GiveBack = step("GiveBack", function()
+				if plan.GiveBack == false then
+					return false
+				end
+				bag.Live += MOVED
+				bag.Saved = bag.Live -- given back and saved at once
+				return true
+			end),
+		})
+	end)
+	local chest = Rules.StorageCount(Rules.Sanitize(memory.Data[key]), MATERIAL)
+	local bagCount = if ran then bag.Live else bag.Saved
+	assert(ran or err == "server crash", tostring(err))
+	return if ran then result else "Crashed", why, table.concat(order, ","), (bagCount + chest) / MOVED
+end
+
+case("deposit order: out of the bag and saved before the chest write", function()
+	local result, why, order, copies = depositRun({ Write = "Committed" })
+	assert(result == "Deposited" and why == nil and order == "Take,Persist,Write" and copies == 1, order)
+
+	result, why, order, copies = depositRun({ Take = false })
+	assert(result == "Refused" and why == "Missing" and order == "Take" and copies == 1, "nothing moved")
+
+	result, why, order, copies = depositRun({ Persist = false, Write = "Committed" })
+	assert(result == "Refused" and why == "Failed" and copies == 1, "unsaved: back to the bag")
+	assert(order == "Take,Persist,GiveBack", "the chest is never written before the bag is saved: " .. order)
+
+	result, why, order, copies = depositRun({ Write = "Refused" })
+	assert(result == "Refused" and why == "StorageFull" and order == "Take,Persist,Write,GiveBack" and copies == 1)
+
+	result, _, order, copies = depositRun({ Write = "LostReply" })
+	assert(result == "Deposited" and copies == 1 and order == "Take,Persist,Write", "a lost reply is found by its op id")
+end)
+
+case("deposit order: unknown outcomes and crashes lose, never duplicate", function()
+	-- every request fails and the read too: it may have committed, so it is not given back
+	local result, _, order, copies = depositRun({ Write = "DownCommitted" })
+	assert(result == "Lost" and order == "Take,Persist,Write" and copies == 1, "it did commit: one copy, in the chest")
+	result, _, order, copies = depositRun({ Write = "Down" })
+	assert(result == "Lost" and copies == 0, "it didn't: lost (logged), not doubled")
+	-- the write surely failed but the bag won't take it back (player left): lost, not doubled
+	result, _, _, copies = depositRun({ Write = "Refused", GiveBack = false })
+	assert(result == "Lost" and copies == 0)
+	-- a server crash before any step, on each path
+	for _, plan in { { Write = "Committed" }, { Write = "Refused" }, { Persist = false } } do
+		for _, crashAt in { "Take", "Persist", "Write", "GiveBack" } do
+			local outcome, _, _, left = depositRun(plan, crashAt)
+			assert(left <= 1, `{left} copies after a crash before {crashAt}`)
+			if outcome == "Crashed" and crashAt == "Write" then
+				assert(left == 0, "the crash window: saved without it, chest not written")
+			end
+		end
+	end
 end)
 
 case("every refusal reason has player text", function()

@@ -200,4 +200,14 @@ Migrations.Steps[7] = function(data: { [string]: any })
 	end
 end
 
+-- v8 (Phase 12 review): PendingReturn, the way home from a reserved run, now lives in the profile
+-- (teleport data can be forged by a client). Additive; a malformed one is dropped so Reconcile
+-- refills it from the Template.
+Migrations.Steps[8] = function(data: { [string]: any })
+	local pending = data.PendingReturn
+	if pending ~= nil and (type(pending) ~= "table" or type(pending.To) ~= "string" or type(pending.At) ~= "number") then
+		data.PendingReturn = nil
+	end
+end
+
 return Migrations

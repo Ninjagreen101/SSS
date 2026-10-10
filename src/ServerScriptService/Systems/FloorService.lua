@@ -23,8 +23,10 @@
 	  run's owner sets a run spawn (SetRunSpawn) and may hold respawns
 	  (SetSpawnHold); members always rise in the run, never on the floor, and
 	  can't fast travel. In a public server, a player coming home from a run
-	  rises once at its ReturnTo: a dungeon's exit Waystone or a Guardian
-	  gate's Return point (anything else is ignored).
+	  rises once at the way home the instance server saved in their profile
+	  (PendingReturn, InstanceService.TakeReturnTo; never teleport data, which
+	  a client can forge): a dungeon's exit Waystone or a Guardian gate's
+	  Return point (anything else is ignored).
 ]]
 
 local CollectionService = game:GetService("CollectionService")
@@ -184,8 +186,8 @@ local function isDungeonExit(id: string): boolean
 	return false
 end
 
--- A ReturnTo point from teleport data, checked against this floor: only a dungeon's exit
--- Waystone or a Guardian gate's Return marker (teleport data passes through the client).
+-- A way-home point (the profile's PendingReturn), checked against this floor: only a dungeon's
+-- exit Waystone or a Guardian gate's Return marker.
 local function returnPoint(kind: string, id: string): CFrame?
 	if kind == "Waystone" then
 		local waystone = waystones[id]

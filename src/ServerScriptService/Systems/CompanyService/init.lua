@@ -27,10 +27,11 @@
 	rules in Rules), Deposit / Withdraw, Refresh. One action per player at a time.
 
 	Storage is duplication-safe:
-	- Deposit: the player's profile is trade-locked (no other system can move their items) while
-	  the UpdateAsync adds the item to the chest; only after it commits is the item removed from the
-	  bag, in the same resumption. If the bag no longer matches, the deposit is taken back out with
-	  another UpdateAsync.
+	- Deposit (Rules.RunDeposit): the item leaves the bag and the profile is saved (the save is
+	  confirmed, DataService.SaveAndConfirm) BEFORE the UpdateAsync adds it to the chest. A write
+	  that surely didn't commit gives it back to the bag; one whose outcome can't be known doesn't.
+	  So a crash or an unknown outcome can lose an item (logged with its full instance) but never
+	  duplicate it.
 	- Withdraw: the UpdateAsync takes the item out of the chest first, then it is added to the bag;
 	  if that fails it goes back with another UpdateAsync (and is logged).
 
@@ -90,6 +91,7 @@ type PresenceEntry = { Users: { string }, ExpiresAt: number }
 
 type WriteOptions = {
 	AllowDisbanded: boolean?,
+	OpId: string?, -- the caller's op id (to look for it afterwards); a fresh one by default
 }
 
 -- Changes a record inside UpdateAsync: ok, a reason when refused, and an output kept with the op
@@ -108,6 +110,7 @@ local PRESENCE_TTL = 150 -- another server's announcement counts this long
 local LOAD_ATTEMPTS = 4 -- reading a member's Company on join
 local LOAD_RETRY_SECONDS = 15
 local REFRESH_MAX_AGE = 2 -- Refresh re-reads a record older than this
+local SAVE_CONFIRM_SECONDS = 15 -- a deposit waits this long for the bag without the item to be saved
 local PUBLISH_BASE = 150 -- MessagingService sends per minute per server: 150 + 60 x players
 local PUBLISH_PER_PLAYER = 60
 local STORE_ATTEMPTS = 4
@@ -380,7 +383,7 @@ end
 local function write(id: string, mutate: Mutator, options: WriteOptions?): (boolean, Record?, string?, any)
 	local allowDisbanded = options ~= nil and options.AllowDisbanded == true
 	local week = Rules.WeekOf(os.time())
-	local opId = HttpService:GenerateGUID(false)
+	local opId = if options and options.OpId then options.OpId else HttpService:GenerateGUID(false)
 	local seen: Record? = nil
 	local out: any = nil
 	local applied: Rules.OpEntry? = nil
@@ -1083,53 +1086,96 @@ local function deposit(player: Player, uid: string, count: number)
 	end
 	local snapshot = TableUtil.DeepCopy(item)
 	snapshot.Count = take
-
-	-- Nothing else may move this player's items while the chest write is in flight.
-	if not DataService.LockForTrade({ player }) then
-		return fail(player, "TradeLocked")
-	end
+	local remaining = item.Count - take
 	local actorId = userKey(player)
-	local ran, ok, record, why, out = pcall(write, id, function(r: Record): (boolean, string?, any)
-		local added, reason, where = Rules.StorageAdd(r, actorId, snapshot, take)
-		return added, reason, where
-	end)
-	DataService.UnlockTrade({ player })
-	if not ran then
-		-- write never throws (Store pcalls every request); if it somehow did, the outcome is unknown.
-		log:Error(`deposit write errored for {player.Name}: {tostring(ok)}`)
-		return fail(player, "Failed")
-	end
-	if not ok or not record then
-		return fail(player, why)
-	end
-	local placed: { Rules.Placed } = if type(out) == "table" then out else {}
+	local opId = HttpService:GenerateGUID(false)
+	local record: Record? = nil
 
-	-- Committed: take it out of the bag in this same resumption (the lock kept it unchanged).
-	local removed, removeWhy = InventoryService.Transact(player, function(draft: PlayerData): (boolean, string?)
-		local live = draft.Inventory.Items[uid]
-		if not live or live.Locked or live.Count < take or not sameRolls(live, snapshot) or InventoryRules.EquippedSlot(draft, uid) then
-			return false, "Missing"
-		end
-		return InventoryRules.Remove(draft, uid, take)
-	end)
-	if removed then
-		DataService.SaveNow(player)
-		committed(record :: Record, player)
+	-- Rules.RunDeposit's order: out of the bag and saved, then into the chest; a chest write that
+	-- surely didn't happen gives the item back. A crash between the save and the chest write loses
+	-- the item (the "left the bag" log line is what support restores it from); nothing is ever
+	-- duplicated.
+	local result, why = Rules.RunDeposit({
+		Take = function(): (boolean, string?)
+			return InventoryService.Transact(player, function(draft: PlayerData): (boolean, string?)
+				local live = draft.Inventory.Items[uid]
+				if not live or live.Locked or live.Count < take or not sameRolls(live, snapshot) or InventoryRules.EquippedSlot(draft, uid) then
+					return false, "Missing"
+				end
+				return InventoryRules.Remove(draft, uid, take)
+			end)
+		end,
+		Persist = function(): boolean
+			return DataService.SaveAndConfirm(player, function(saved: any): boolean
+				local inventory = saved.Inventory
+				local items = type(inventory) == "table" and inventory.Items
+				if type(items) ~= "table" then
+					return false
+				end
+				local entry = items[uid]
+				return entry == nil or (type(entry) == "table" and type(entry.Count) == "number" and entry.Count <= remaining)
+			end, SAVE_CONFIRM_SECONDS)
+		end,
+		Write = function(): (Rules.WriteOutcome, string?)
+			log:Info(`deposit {opId}: {player.Name} ({player.UserId}) {HttpService:JSONEncode(snapshot)} left the bag for Company {id}`)
+			local ran, ok, written, reason = pcall(write, id, function(r: Record): (boolean, string?, any)
+				local added, addWhy, where = Rules.StorageAdd(r, actorId, snapshot, take)
+				return added, addWhy, where
+			end, { OpId = opId })
+			if not ran then
+				-- write never throws (Store pcalls every request); if it somehow did, the outcome is unknown.
+				log:Error(`deposit write errored for {player.Name}: {tostring(ok)}`)
+				return "Unknown", "Failed"
+			end
+			if ok and written then
+				record = written
+				return "Committed", nil
+			end
+			if reason ~= "Failed" then
+				return "Refused", reason -- refused by the rules or the mutate, or never sent ("Busy")
+			end
+			-- Every attempt errored, and one may still have committed: look for the op.
+			local read, raw = store.Read(Rules.RecordKey(id))
+			if not read then
+				return "Unknown", reason
+			end
+			local current = Rules.Sanitize(raw)
+			if current and Rules.FindOp(current, opId) then
+				remember(current)
+				record = current
+				return "Committed", nil
+			end
+			return "Refused", reason
+		end,
+		GiveBack = function(): boolean
+			local given = InventoryService.Transact(player, function(draft: PlayerData): (boolean, string?)
+				return InventoryRules.Add(draft, TableUtil.DeepCopy(snapshot), take)
+			end)
+			if not given then
+				-- The bag filled up meanwhile: back in past the slot cap (nothing may be lost).
+				given = InventoryService.Transact(player, function(draft: PlayerData): (boolean, string?)
+					local capacity = draft.Inventory.Capacity
+					draft.Inventory.Capacity = math.huge
+					local added, reason = InventoryRules.Add(draft, TableUtil.DeepCopy(snapshot), take)
+					draft.Inventory.Capacity = capacity
+					return added, reason
+				end)
+			end
+			if given then
+				DataService.SaveNow(player)
+			end
+			return given
+		end,
+	})
+	if result == "Deposited" and record then
+		committed(record, player)
 		notify(player, "Toasts.Deposited", { item = itemName(snapshot.DefId), count = take }, "Success")
 		return
 	end
-
-	-- The bag no longer has it: undo the deposit.
-	local undone, undoneRecord, undoWhy = write(id, function(r: Record): (boolean, string?)
-		return Rules.StorageRemovePlaced(r, placed)
-	end, { AllowDisbanded = true })
-	if undone and undoneRecord then
-		committed(undoneRecord, player)
-	else
-		log:Error(`DEPOSIT UNDO FAILED {player.Name} ({player.UserId}) {HttpService:JSONEncode(snapshot)} in Company {id}: {tostring(undoWhy)}`)
-		committed(record :: Record, player)
+	if result == "Lost" then
+		log:Error(`DEPOSIT LOST {opId}: {player.Name} ({player.UserId}) {HttpService:JSONEncode(snapshot)} for Company {id}: {tostring(why)}`)
 	end
-	fail(player, removeWhy)
+	fail(player, why)
 end
 
 local function withdraw(player: Player, uid: string, count: number)

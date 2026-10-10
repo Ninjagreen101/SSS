@@ -122,6 +122,10 @@ local template: Types.PlayerData = {
 		LootMode = "Personal", -- preferred party loot setting when this player leads
 		Blocked = {}, -- UserId (as string) -> true: no trade / party invites from them
 	},
+	PendingReturn = {
+		To = "", -- the way home from a reserved run ("Waystone:<id>" / "Gate:<id>"; "" = none)
+		At = 0, -- unix time it was written (only honoured within Config.Social.Instances.ReturnWindow)
+	},
 	Map = {
 		Explored = {}, -- floor id -> fog-of-war bitset as hex (MapService)
 		Pins = {}, -- floor id -> { { X, Z, Icon } }

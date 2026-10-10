@@ -647,6 +647,26 @@ The design is in docs/PHASE12_MULTIPLAYER.md.
      everyone else home. Afterwards players return to the run's exit waystone or the Gate. In
      Studio, unpublished, or after a failed teleport, InstanceService.Begin returns false and the
      old in-server copy runs. Decisions #133 and #149 described this transport change.
+     - The way home is never read from teleport data: any client can teleport itself to this place
+       with data of its choosing. The instance server writes `PendingReturn = { To, At }` into the
+       profile and saves it before the teleport (DataVersion 8). The next public server uses it
+       once, only for a dungeon exit waystone or a gate's Return point, and only within
+       ReturnWindow (600 s), then clears it.
+     - The instance server trusts its arrivals' teleport data because a reserved server can only be
+       entered with its access code, which only the reserving server has. Members and
+       SourcePlaceId are still checked.
+     - A teleport counts as failed only if the player is still here after TeleportDeadline (60 s),
+       with one more wait while Roblox reports it in progress. Nothing falls back for a player who
+       left. Begin cancels the group's open trades; a player being sent counts as busy for trading.
+     - The source party (leader, members going, loot mode) rides in the teleport data, and the
+       instance server rebuilds it from whoever arrived (PartyService.Regroup), so shared XP,
+       SharedGold, pings and party chat work in the run. Only the first party in a mixed group is
+       rebuilt.
+     - Known limit: parties don't survive the trip home. The way home goes to any public server of
+       the place, not the one the party left, and that server dropped the members from their party
+       when they left. Holding membership in the source server would not help unless the return
+       also targeted that server. Carrying the party in PendingReturn and regrouping on arrival is
+       the follow-up.
 178. **Trades are re-validated and swapped in one step.**
      - Any change to either offer unlocks both sides and resets the 3 s countdown, and the other
        side's change flashes.
@@ -661,9 +681,15 @@ The design is in docs/PHASE12_MULTIPLAYER.md.
      - Records are written only through UpdateAsync. Every write carries an op id, so a retried
        write that had already committed is never applied twice.
      - Names are filtered and claimed through a unique name index.
-     - Storage moves are ordered so a failure can never mint an item: a deposit leaves the bag only
-       after the record commits; a withdrawal leaves the record first and is put back if the give
+     - Storage moves are ordered so a failure can never mint an item. A deposit leaves the bag and
+       the profile save is confirmed before the record's UpdateAsync. A write that surely didn't
+       commit gives the item back; one with an unknown outcome (every attempt and the follow-up
+       read failed) doesn't. A withdrawal leaves the record first and is put back if the give
        fails.
+     - Known gap, accepted: a server crash between the deposit's profile save and the chest write,
+       or an unknown write outcome, loses the item. It is never duplicated. Each deposit logs the
+       full item with its op id before the write, and a loss logs `DEPOSIT LOST`, so support can
+       restore it.
      - MessagingService tells other servers to drop their cache.
      - Weekly Company quests are fed by members' actions. Rewards can be claimed for this week and
        last week, once per member.

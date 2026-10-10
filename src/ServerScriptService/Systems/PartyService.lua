@@ -23,8 +23,10 @@
 	  Unlist, Join (arg = listing id; asks the listing's owner, who answers like an invite) and
 	  Refresh (sends the board and keeps sending updates for Finder.WatchSeconds).
 
-	Public: GetParty, MembersNear, IsRaid, IsLeader, SharedGoldGroups, Changed (fires with each
-	player whose party changed).
+	Public: GetParty, MembersNear, IsRaid, IsLeader, SharedGoldGroups, Describe, Regroup, Changed
+	(fires with each player whose party changed).
+	Reserved runs (InstanceService): the sending server describes the group's party (Describe) in
+	the teleport data; the instance server rebuilds it from whoever arrived (Regroup).
 ]]
 
 local Players = game:GetService("Players")
@@ -770,6 +772,56 @@ function PartyService.SharedGoldGroups(players: { Player }): { { Player } }
 		end
 	end
 	return groups
+end
+
+export type PartyInfo = { Leader: number, Members: { number }, LootMode: string }
+
+-- `player`'s party as plain data (leader, members oldest first, loot mode), or nil.
+function PartyService.Describe(player: Player): PartyInfo?
+	local party = partyFor(player.UserId)
+	if not party then
+		return nil
+	end
+	return { Leader = party.Leader, Members = table.clone(party.Members), LootMode = party.LootMode }
+end
+
+-- Instance servers: puts `players` (members of one source party, oldest first) back into one
+-- party. The first call with two or more of them creates it, led by `leaderId` if present; later
+-- calls add whoever arrived since and isn't in a party (players who joined another party here, or
+-- left it, are left alone).
+function PartyService.Regroup(players: { Player }, leaderId: number, lootMode: string)
+	local host: Party? = nil
+	local loose: { number } = {}
+	for _, player in players do
+		if player.Parent ~= Players then
+			continue
+		end
+		local party = partyFor(player.UserId)
+		if not party then
+			table.insert(loose, player.UserId)
+		elseif not host then
+			host = party
+		end
+	end
+	if #loose == 0 then
+		return
+	end
+	local mode = if table.find(SP.LootModes, lootMode) then lootMode else SP.LootModes[1]
+	local isNew = host == nil
+	local party, added = PartyRules.Regroup(host, newId("P"), loose, leaderId, mode, LIMITS)
+	if not party or #added == 0 then
+		return
+	end
+	if isNew then
+		parties[party.Id] = party
+		openChannel(party)
+	end
+	for _, userId in added do
+		partyOf[userId] = party.Id
+		addToChannel(party, userId)
+	end
+	sendState(party)
+	broadcastBoard()
 end
 
 -- LIFECYCLE -----------------------------------------------------------------------------------

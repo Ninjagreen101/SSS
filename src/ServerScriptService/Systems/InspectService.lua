@@ -7,7 +7,8 @@
 	  InspectResult(userId, payload | nil). The target must be in this server and within
 	  Config.Social.Inspect.MaxDistance of the asker, and each asker waits Cooldown between requests.
 	  Gear is copied item by item (full instances, so the client can draw the usual tooltips) with the
-	  bookkeeping fields blanked. nil means "can't inspect" (gone, too far, or yourself).
+	  bookkeeping fields blanked. nil means "can't inspect" (gone, too far, yourself, or the target
+	  has blocked you: refused silently, the same nil).
 	- RequestSetEmoteSlot(slot, emoteId): puts an emote ("" = none) in one wheel slot. The id must exist
 	  in Data/Emotes. If the emote already sits in another slot the two swap, so an emote is never on
 	  the wheel twice. An empty saved wheel is first filled with the defaults, so the player's edit is
@@ -105,7 +106,8 @@ local function onInspect(player: Player, userId: number)
 		return
 	end
 	local data = DataService.GetData(target)
-	if not data then
+	local blocked = data and data.Social and data.Social.Blocked
+	if not data or (blocked and blocked[tostring(player.UserId)] == true) then
 		Net.Fire("InspectResult", player, userId, nil)
 		return
 	end

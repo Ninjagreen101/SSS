@@ -35,6 +35,8 @@ return TableUtil.DeepFreeze({
 		TeleportRetries = 3,
 		ReturnTimeout = 20, -- seconds an instance server waits after the run before sending everyone home
 		ArrivalTimeout = 45, -- seconds an instance server waits for its party before giving up
+		TeleportDeadline = 60, -- seconds a sent player may stay here before their teleport counts as failed
+		ReturnWindow = 600, -- seconds a saved way home (profile PendingReturn) stays valid
 	},
 
 	Trade = {

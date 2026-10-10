@@ -2,8 +2,10 @@
 -- Offline test of the reserved-server rules (Systems/InstanceService/Rules.lua) with the real
 -- Config.Social.Instances tuning loaded from src/: the fallback decision (Studio, unpublished,
 -- disabled, nested), teleport-data building and parsing (malformed data of every kind), who an
--- instance server admits (non-members, wrong source place, mismatched runs), the arrival timeout,
--- the way home (ReturnTo), and the retry rules. Every check is an assert; the run prints a summary.
+-- instance server admits (non-members, wrong source place, mismatched runs), the source party
+-- carried in, the arrival timeout, the way home (never from teleport data: the profile's
+-- PendingReturn, used once and only while fresh), and the retry rules. Every check is an assert;
+-- the run prints a summary.
 --
 --   lune run tools/place/test_instances.luau
 
@@ -68,6 +70,7 @@ local LIMITS = {
 		end
 		return id == "Brinewarden"
 	end,
+	LootModes = Social.Party.LootModes,
 }
 
 local passed = 0
@@ -107,6 +110,8 @@ case("config tuning is sane", function()
 	assert(type(I.UseReservedServers) == "boolean", "UseReservedServers")
 	assert(type(I.TeleportRetries) == "number" and I.TeleportRetries >= 1, "TeleportRetries")
 	assert(I.ReturnTimeout > 0 and I.ArrivalTimeout > 0, "timeouts")
+	assert(I.TeleportDeadline >= I.ArrivalTimeout, "a slow teleport gets at least the arrival timeout")
+	assert(I.ReturnWindow > I.ReturnTimeout, "a pending return outlives the trip home")
 end)
 
 -- FALLBACK DECISION ---------------------------------------------------------------------------
@@ -202,6 +207,28 @@ case("malformed: members", function()
 	assert(Rules.ParseInstance(good({ Members = many }), LIMITS), "a full party is fine")
 end)
 
+case("the source party rides along and is checked", function()
+	local party = { Leader = 202, Members = { 202, 101 }, LootMode = "SharedGold" }
+	local data = Rules.InstanceData("Dungeon", "SunkenCistern", { 101, 202, 303 }, PLACE, party)
+	assert(data.Party ~= party and data.Party.Members ~= party.Members, "party data must be a copy")
+	local record, why = Rules.ParseInstance(data, LIMITS)
+	assert(record and record.Party, why)
+	assert(record.Party.Leader == 202 and #record.Party.Members == 2 and record.Party.LootMode == "SharedGold")
+	assert(Rules.ParseInstance(good(), LIMITS).Party == nil, "no party: solo or strangers")
+	local function badParty(value)
+		rejects(good({ Party = value }), "Party")
+	end
+	badParty("202")
+	badParty({ Leader = 202, Members = { 202 }, LootMode = "Personal" }) -- a party of one
+	badParty({ Leader = 404, Members = { 202, 101 }, LootMode = "Personal" }) -- leader outside it
+	badParty({ Leader = 202, Members = { 202, 404 }, LootMode = "Personal" }) -- not a run member
+	badParty({ Leader = 202, Members = { 202, 202 }, LootMode = "Personal" })
+	badParty({ Leader = 202, Members = { 202, 101 }, LootMode = "Everything" })
+	badParty({ Leader = 202, Members = { 202, 101 } })
+	badParty({ Leader = "202", Members = { 202, 101 }, LootMode = "Personal" })
+	badParty({ Leader = 202, Members = { [1] = 202, [3] = 101 }, LootMode = "Personal" })
+end)
+
 case("malformed: return place", function()
 	rejects(good({ ReturnPlaceId = OTHER_PLACE }), "ReturnPlace")
 	rejects(good({ ReturnPlaceId = 0 }), "ReturnPlace")
@@ -276,20 +303,77 @@ case("ReturnTo split and validation", function()
 	end
 end)
 
-case("return data is honoured only from this place", function()
-	local data = Rules.ReturnData("Gate:Brinewarden")
-	assert(data.Version == 1 and data.ReturnTo == "Gate:Brinewarden")
-	assert(Rules.ParseReturn(data, PLACE, PLACE) == "Gate:Brinewarden")
-	assert(Rules.ParseReturn(data, OTHER_PLACE, PLACE) == nil)
-	assert(Rules.ParseReturn(data, nil, PLACE) == nil)
-	assert(Rules.ParseReturn({ Version = 2, ReturnTo = "Gate:Brinewarden" }, PLACE, PLACE) == nil)
-	assert(Rules.ParseReturn({ Version = 1, ReturnTo = "Somewhere:Else" }, PLACE, PLACE) == nil)
-	assert(Rules.ParseReturn("Gate:Brinewarden", PLACE, PLACE) == nil)
-	-- no destination: plain return, nothing to honour
-	local plain = Rules.ReturnData(nil)
-	assert(plain.Version == 1 and plain.ReturnTo == nil)
-	assert(Rules.ParseReturn(plain, PLACE, PLACE) == nil)
-	assert(Rules.ReturnData("Bogus").ReturnTo == nil)
+local NOW = 1_700_000_000
+local WINDOW = I.ReturnWindow
+
+case("ReturnTo in teleport data is ignored", function()
+	-- The way home carries no destination, and nothing reads one from teleport data: a client can
+	-- TeleportService:Teleport(game.PlaceId, nil, { Version = 1, ReturnTo = "Gate:..." }) itself.
+	local data = Rules.ReturnData()
+	assert(data.Version == 1 and data.ReturnTo == nil)
+	local count = 0
+	for _ in data do
+		count += 1
+	end
+	assert(count == 1, "only the version")
+	assert(Rules.ParseReturn == nil, "no teleport-data reader for the way home")
+	-- forged join data shaped like the old ReturnTo is not a pending return either
+	local forged = { Version = 1, ReturnTo = "Gate:Brinewarden" }
+	local kind, id = Rules.TakePending(forged, NOW, WINDOW)
+	assert(kind == nil and id == nil, "teleport data is not a PendingReturn")
+end)
+
+case("pending return: written by the instance, consumed once", function()
+	local profile = { PendingReturn = { To = "", At = 0 } }
+	profile.PendingReturn = Rules.PendingReturn("Gate:Brinewarden", NOW)
+	assert(profile.PendingReturn.To == "Gate:Brinewarden" and profile.PendingReturn.At == NOW)
+	-- what InstanceService.TakeReturnTo does with the profile value
+	local function take(at: number)
+		local kind, id, cleared = Rules.TakePending(profile.PendingReturn, at, WINDOW)
+		if cleared then
+			profile.PendingReturn = cleared
+		end
+		return kind, id
+	end
+	local kind, id = take(NOW + 12)
+	assert(kind == "Gate" and id == "Brinewarden", "first spawn after the run")
+	assert(profile.PendingReturn.To == "" and profile.PendingReturn.At == 0, "cleared")
+	kind, id = take(NOW + 13)
+	assert(kind == nil and id == nil, "second spawn: back to the usual Waystone")
+	local _, _, cleared = Rules.TakePending(profile.PendingReturn, NOW + 14, WINDOW)
+	assert(cleared == nil, "an empty one needs no write")
+	-- a dungeon exit
+	profile.PendingReturn = Rules.PendingReturn("Waystone:F1_CisternGate", NOW)
+	kind, id = take(NOW + WINDOW)
+	assert(kind == "Waystone" and id == "F1_CisternGate", "valid right up to the window")
+end)
+
+case("stale, future or malformed pending returns are ignored (and cleared)", function()
+	local function ignored(pending, at: number, label: string)
+		local kind, id, cleared = Rules.TakePending(pending, at, WINDOW)
+		assert(kind == nil and id == nil, `honoured {label}`)
+		assert(cleared and cleared.To == "" and cleared.At == 0, `not cleared: {label}`)
+	end
+	local good = Rules.PendingReturn("Gate:Brinewarden", NOW)
+	ignored(good, NOW + WINDOW + 1, "stale")
+	ignored(good, NOW - Rules.CLOCK_SKEW - 1, "stamped in the future")
+	ignored({ To = "Town:Square", At = NOW }, NOW, "unknown kind")
+	ignored({ To = "Gate:../x", At = NOW }, NOW, "bad id")
+	ignored({ To = 5, At = NOW }, NOW, "non-string")
+	ignored({ To = "Gate:Brinewarden", At = "now" }, NOW, "non-number time")
+	ignored({ To = "Gate:Brinewarden", At = 0 / 0 }, NOW, "NaN time")
+	ignored({ To = "Gate:Brinewarden" }, NOW, "no time")
+	for _, empty in { false, "Gate:Brinewarden", { To = "", At = 0 } } do
+		local kind, _, cleared = Rules.TakePending(empty, NOW, WINDOW)
+		assert(kind == nil and cleared == nil)
+	end
+	local kind, _, cleared = Rules.TakePending(nil, NOW, WINDOW)
+	assert(kind == nil and cleared == nil, "no profile value")
+	-- no destination (refused / non-member): nothing to honour
+	for _, destination in { nil, "Bogus", "Somewhere:Else" } do
+		local pending = Rules.PendingReturn(destination, NOW)
+		assert(pending.To == "" and pending.At == 0, tostring(destination))
+	end
 end)
 
 -- RETRIES -------------------------------------------------------------------------------------

@@ -44,6 +44,8 @@ local log = Log.new("DataService")
 
 -- Paths (dot-joined prefixes) that never replicate to the client.
 local SERVER_ONLY_PREFIXES = { "Purchases.Receipts" }
+-- Seconds between checks while SaveAndConfirm waits for its save.
+local SAVE_CONFIRM_POLL = 0.1
 
 local DataService = {}
 
@@ -349,6 +351,33 @@ function DataService.SaveNow(player: Player)
 	end
 	flushPlayTime(player)
 	profile:Save()
+end
+
+-- Saves now and waits (at most `timeout` seconds) until a committed save of this profile passes
+-- `landed`, which is given the data as written. For moves that must be durable in the profile
+-- before anything else happens (a Company deposit leaves the bag before the chest gets it). False
+-- if the profile isn't loaded or is trade-locked (saves are deferred), or no such save landed in
+-- time; the change itself stays in the live profile either way.
+function DataService.SaveAndConfirm(player: Player, landed: (saved: any) -> boolean, timeout: number): boolean
+	local profile = profiles[player]
+	if not profile or tradeLocked[player] then
+		return false
+	end
+	local confirmed = false
+	local connection = profile.OnAfterSave:Connect(function(saved: any)
+		if not confirmed and type(saved) == "table" then
+			local ok, result = pcall(landed, saved)
+			confirmed = ok and result == true
+		end
+	end)
+	flushPlayTime(player)
+	profile:Save()
+	local deadline = os.clock() + timeout
+	while not confirmed and os.clock() < deadline do
+		task.wait(SAVE_CONFIRM_POLL)
+	end
+	connection:Disconnect()
+	return confirmed
 end
 
 -- Before a cross-server teleport (InstanceService): false if the profile isn't loaded or is

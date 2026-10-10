@@ -1,8 +1,9 @@
 --!nocheck
 -- Offline test of the party rules (Systems/PartyRules.lua) with the real Config.Social tuning
 -- loaded from src/: size caps, raid conversion, leader handoff on leave, disband, invite expiry
--- and acceptance, kick / promote / loot-mode permissions, the kill-XP share and the SharedGold
--- split. Every check is an assert; the run prints a summary.
+-- and acceptance, kick / promote / loot-mode permissions, the kill-XP share, the SharedGold
+-- split, and rebuilding a run's party in an instance server from its members (Regroup). Every
+-- check is an assert; the run prints a summary.
 --
 --   lune run tools/place/test_party.luau
 
@@ -105,6 +106,41 @@ case("raid conversion", function()
 	Rules.RemoveMember(party, SP.RaidMaxMembers)
 	Rules.RemoveMember(party, SP.RaidMaxMembers - 1)
 	assert(Rules.ToggleRaid(party, 1, LIMITS) and not party.Raid, "back to a party once it fits")
+end)
+
+case("regroup: an instance server rebuilds the run's party from its members", function()
+	-- one member alone makes no party yet
+	local none, added = Rules.Regroup(nil, "P9", { 101 }, 101, "SharedGold", LIMITS)
+	assert(none == nil and #added == 0, "a party needs two")
+	-- the original leader leads even when someone else arrived first
+	local party, joined = Rules.Regroup(nil, "P9", { 202, 101, 303 }, 101, "SharedGold", LIMITS)
+	assert(party and party.Id == "P9" and party.Leader == 101, "original leader")
+	assert(party.LootMode == "SharedGold" and not party.Raid, "loot mode carried over")
+	assert(#party.Members == 3 and party.Members[1] == 101 and party.Members[2] == 202 and party.Members[3] == 303)
+	assert(#joined == 3, "all three added")
+	-- a late arrival joins it; members already in are skipped; the leader stays
+	local same, late = Rules.Regroup(party, "P10", { 202, 404 }, 101, "Personal", LIMITS)
+	assert(same == party and #late == 1 and late[1] == 404 and #party.Members == 4)
+	assert(party.Leader == 101 and party.LootMode == "SharedGold" and party.Id == "P9")
+	-- the leader stayed behind: the first member (oldest in the source party) leads
+	local headless = Rules.Regroup(nil, "P11", { 202, 303 }, 101, "Personal", LIMITS)
+	assert(headless and headless.Leader == 202)
+	-- the leader arriving after the party was made joins as a member
+	local _, leaderLate = Rules.Regroup(headless, "P12", { 101 }, 101, "Personal", LIMITS)
+	assert(#leaderLate == 1 and headless.Leader == 202 and #headless.Members == 3)
+end)
+
+case("regroup: a run bigger than a party becomes a raid, capped", function()
+	local loose = {}
+	for userId = 1, SP.RaidMaxMembers + 1 do
+		loose[userId] = userId
+	end
+	local party, added = Rules.Regroup(nil, "P1", loose, 1, "Personal", LIMITS)
+	assert(party.Raid, "grew into a raid")
+	assert(#party.Members == SP.RaidMaxMembers and #added == SP.RaidMaxMembers, "raid cap holds")
+	assert(not Rules.IsMember(party, SP.RaidMaxMembers + 1), "the extra one stays out")
+	local small = Rules.Regroup(nil, "P2", { 1, 2, 3 }, 1, "Personal", LIMITS)
+	assert(not small.Raid, "a party that fits stays a party")
 end)
 
 case("leader leaving hands over to the oldest member", function()

@@ -6,27 +6,41 @@
 	Every pure decision (data validation, admission, timing, retries) is in Rules.
 
 	Going in (a public server)
-	  Start(mode, id, players) reserves a server of this same place and teleports exactly that
-	  group there with { Version, Mode, Id, Members, ReturnPlaceId }. It does so only when
+	  Begin(mode, id, players) reserves a server of this same place and teleports exactly that
+	  group there with { Version, Mode, Id, Members, ReturnPlaceId, Party }. It does so only when
 	  Config UseReservedServers is on, the place is published and this isn't Studio. It returns
 	  false when it can't or when reserving / teleporting keeps failing (TeleportRetries); the
-	  caller then runs its in-server copy as before. Each profile is saved first
-	  (DataService.PrepareTeleport). The session lock is NOT released here: it is released on
-	  PlayerRemoving like any leave, and ProfileStore's session-conflict messaging hands it to the
-	  destination (ending it early would kick the player if the teleport failed).
-	  TeleportInitFailed is retried per player; when it keeps failing the player is told and the
-	  caller's fallback runs for them here.
+	  caller then runs its in-server copy as before. Open trades of the group are cancelled first
+	  (TradeService.Cancel) and each profile is saved (DataService.PrepareTeleport). The session
+	  lock is NOT released here: it is released on PlayerRemoving like any leave, and ProfileStore's
+	  session-conflict messaging hands it to the destination (ending it early would kick the player
+	  if the teleport failed). TeleportInitFailed is retried per player; when it keeps failing, or
+	  the player is still here and not mid-teleport after TeleportDeadline, the player is told and
+	  the caller's fallback runs for them here. Nothing runs for a player who has left.
 
 	An instance server (a reserved server of this place: PrivateServerId set, no owner)
 	  The first arrival with valid data fixes the run (Rules.ParseInstance). Only players named in
 	  it who teleported from this place and carry the same run are admitted (Rules.Admit); anyone
 	  else is sent back without ever getting a character (FloorService.SpawnHeld). The handler
-	  registered for the mode builds the run space at once (Prepare), starts the run when the
-	  whole party has loaded or ArrivalTimeout has passed (Begin), and decides about late members
-	  (Join). ReturnAll sends everyone home: after ReturnTimeout when a run ends, at once on a
-	  failure. Returning players carry ReturnTo, which FloorService honours once (TakeReturnTo).
-	  If the way home keeps failing the player is kicked with a rejoin message (their profile is
-	  saved and released as on any leave).
+	  registered for the mode builds the run space at once (Prepare; members whose profile loaded
+	  while their spawn was held get their character then), starts the run when the whole party
+	  has loaded or ArrivalTimeout has passed (Begin), and decides about late members (Join). The
+	  source party is rebuilt here from the record's Party (PartyService.Regroup) for whoever
+	  arrived, so shared XP, SharedGold, pings and party chat work in the run. ReturnAll sends
+	  everyone home: after ReturnTimeout when a run ends, at once on a failure. The way home is
+	  written into each profile (PendingReturn, saved before the teleport), never into teleport
+	  data; the next public server honours it once within ReturnWindow (TakeReturnTo). If the way
+	  home keeps failing the player is kicked with a rejoin message (their profile is saved and
+	  released as on any leave).
+	  Parties are not carried back: the way home goes to any public server of the place, and the
+	  source server dropped the members from its parties when they left (decision #177).
+
+	Why the arrival's teleport data can be trusted here: it is read on the server
+	(Player:GetJoinData), and a reserved server can only be entered with its access code, which
+	ReserveServer hands to the reserving server alone and only server-side TeleportAsync can use.
+	So every arrival in an instance server was sent by a server of this place with the data that
+	server wrote. Rules.Admit still checks SourcePlaceId (set by Roblox) and that the arrival is
+	named in the run's Members.
 ]]
 
 local Players = game:GetService("Players")
@@ -39,6 +53,7 @@ local Config = require(Shared.Config)
 local Strings = require(Shared.Strings)
 local Net = require(Shared.Net)
 local Log = require(Shared.Util.Log)
+local Signal = require(Shared.Util.Signal)
 local Guardians = require(Shared.Data.Guardians)
 
 local DataService = require(script.Parent.DataService)
@@ -70,12 +85,22 @@ type Outgoing = {
 	Options: TeleportOptions,
 	Attempts: number,
 	Deadline: number,
+	Extended: boolean, -- the deadline was pushed back once while Roblox reported the teleport running
 	OnFailed: (Player) -> (),
 }
 
 type Phase = "Public" | "Waiting" | "Gathering" | "Running" | "Returning"
 
 local InstanceService = {}
+
+-- TradeService and CharacterService depend on this module (directly or through FloorService and
+-- DungeonService), so it can't require them; they listen here instead.
+-- Fires with each player about to be sent to another server, before their profile is saved
+-- (TradeService cancels their trade: a trade lock would keep them here).
+InstanceService.Leaving = Signal.new() :: Signal.Signal<Player>
+-- Instance servers: fires once the run space exists with the admitted members who have a loaded
+-- profile but no character (held until now); CharacterService spawns them.
+InstanceService.Prepared = Signal.new() :: Signal.Signal<{ Player }>
 
 local isInstance = false
 local phase: Phase = "Public"
@@ -89,7 +114,13 @@ local admitted: { [Player]: boolean } = {}
 local begun: { [Player]: boolean } = {}
 local outgoing: { [Player]: Outgoing } = {}
 local starting: { [Player]: boolean } = {}
-local returnRead: { [Player]: boolean } = {}
+local teleportState: { [Player]: Enum.TeleportState } = {} -- latest Player.OnTeleport state
+local IN_FLIGHT: { [Enum.TeleportState]: boolean } = {
+	[Enum.TeleportState.RequestedFromServer] = true,
+	[Enum.TeleportState.Started] = true,
+	[Enum.TeleportState.WaitingForServer] = true,
+	[Enum.TeleportState.InProgress] = true,
+}
 
 local function sleep(seconds: number)
 	task.wait(seconds)
@@ -113,6 +144,7 @@ local function limits(): Rules.Limits
 			end
 			return Guardians.Get(id) ~= nil
 		end,
+		LootModes = Config.Social.Party.LootModes,
 	}
 end
 
@@ -145,14 +177,24 @@ local function giveUp(player: Player, entry: Outgoing)
 	end
 end
 
--- A teleport that neither left nor reported a failure in time counts as failed.
+-- A player still here TeleportDeadline after the request counts as failed, unless Roblox reports
+-- the teleport still running (then it gets one more TeleportDeadline). A player who left is done
+-- (PlayerRemoving forgets the entry), so a slow but successful teleport never falls back.
 local function armDeadline(player: Player, entry: Outgoing)
-	entry.Deadline = os.clock() + I.ArrivalTimeout
-	task.delay(I.ArrivalTimeout, function()
-		if outgoing[player] == entry and os.clock() >= entry.Deadline then
-			log:Warn(`teleport of {player.Name} timed out`)
-			giveUp(player, entry)
+	entry.Deadline = os.clock() + I.TeleportDeadline
+	task.delay(I.TeleportDeadline, function()
+		if outgoing[player] ~= entry or os.clock() < entry.Deadline or player.Parent ~= Players then
+			return
 		end
+		local state = teleportState[player]
+		if state and IN_FLIGHT[state] and not entry.Extended then
+			entry.Extended = true
+			log:Warn(`teleport of {player.Name} still running ({state.Name}); waiting longer`)
+			armDeadline(player, entry)
+			return
+		end
+		log:Warn(`teleport of {player.Name} timed out`)
+		giveUp(player, entry)
 	end)
 end
 
@@ -170,6 +212,7 @@ local function retryOrGiveUp(player: Player, entry: Outgoing, resultName: string
 		if outgoing[player] ~= entry or player.Parent ~= Players then
 			return
 		end
+		teleportState[player] = nil
 		armDeadline(player, entry)
 		local ok, err = pcall(function()
 			TeleportService:TeleportAsync(entry.PlaceId, { player }, entry.Options)
@@ -205,9 +248,10 @@ local function send(players: { Player }, placeId: number, options: TeleportOptio
 	end
 	local entries: { [Player]: Outgoing } = {}
 	for _, player in group do
-		local entry: Outgoing = { PlaceId = placeId, Options = options, Attempts = 1, Deadline = 0, OnFailed = onFailed }
+		local entry: Outgoing = { PlaceId = placeId, Options = options, Attempts = 1, Deadline = 0, Extended = false, OnFailed = onFailed }
 		outgoing[player] = entry
 		entries[player] = entry
+		teleportState[player] = nil
 	end
 	local ok, err = Rules.Retry(I.TeleportRetries, function(): boolean
 		local still: { Player } = {}
@@ -254,11 +298,16 @@ local function returnDestination(): string?
 	return if ok and type(result) == "string" then result else nil
 end
 
--- Sends players from this instance server to a public server of this place.
+-- Sends players from this instance server to a public server of this place. The destination is
+-- written into each profile (PendingReturn) and saved before the teleport; the teleport data
+-- carries nothing a client could use to pick its own arrival point.
 local function sendHome(players: { Player }, destination: string?)
 	local going: { Player } = {}
+	local pending = Rules.PendingReturn(destination, os.time())
 	for _, player in players do
 		if player.Parent == Players and not outgoing[player] then
+			InstanceService.Leaving:Fire(player)
+			DataService.Set(player, { "PendingReturn" }, table.clone(pending))
 			-- Saves now. A trade lock can't hold anyone here: the way home is not optional.
 			DataService.PrepareTeleport(player)
 			table.insert(going, player)
@@ -269,7 +318,7 @@ local function sendHome(players: { Player }, destination: string?)
 	end
 	notify(going, "Instances.ReturningNow", nil, "Info")
 	local options = Instance.new("TeleportOptions")
-	options:SetTeleportData(Rules.ReturnData(destination))
+	options:SetTeleportData(Rules.ReturnData())
 	local function onFailed(player: Player)
 		log:Warn(`could not send {player.Name} home; asking them to rejoin`)
 		player:Kick(Strings.Instances.ReturnFailedKick)
@@ -300,6 +349,17 @@ local function prepare()
 	if ok and result == true then
 		prepared = true
 		log:Info(`prepared {current.Mode} {current.Id} for {#current.Members}`)
+		-- Members whose profile loaded while the run space didn't exist were held without a
+		-- character (CharacterService only spawns on load); they rise now.
+		local held: { Player } = {}
+		for player in admitted do
+			if player.Parent == Players and not player.Character and DataService.IsLoaded(player) then
+				table.insert(held, player)
+			end
+		end
+		if #held > 0 then
+			InstanceService.Prepared:Fire(held)
+		end
 	else
 		log:Error(`could not prepare {current.Mode} {current.Id}: {if ok then "refused" else tostring(result)}`)
 		InstanceService.ReturnAll("Failed")
@@ -353,6 +413,27 @@ local function isReady(player: Player): boolean
 	return humanoid ~= nil and humanoid.Health > 0
 end
 
+-- Rebuilds the source party (record.Party) from those of `players` who belong to it.
+local function regroup(players: { Player })
+	local current = record
+	local party = current and current.Party
+	if not party then
+		return
+	end
+	local group: { Player } = {}
+	for _, player in players do
+		if player.Parent == Players and table.find(party.Members, player.UserId) then
+			table.insert(group, player)
+		end
+	end
+	local ok, err = pcall(function()
+		PartyService.Regroup(group, party.Leader, party.LootMode)
+	end)
+	if not ok then
+		log:Error(`party rebuild failed: {tostring(err)}`)
+	end
+end
+
 local function watch()
 	local current, handler = record, currentHandler()
 	if not current or phase == "Returning" then
@@ -378,6 +459,7 @@ local function watch()
 			for _, player in ready do
 				begun[player] = true
 			end
+			regroup(ready)
 			log:Info(`starting {current.Mode} {current.Id} with {#ready}/{#current.Members}`)
 			local begin = handler.Begin
 			task.spawn(function()
@@ -404,7 +486,13 @@ local function watch()
 					if not ok or joined ~= true then
 						notify({ player }, "Instances.Refused", nil, "Warning")
 						sendHome({ player }, returnDestination())
+						return
 					end
+					local inRun: { Player } = {}
+					for member in begun do
+						table.insert(inRun, member)
+					end
+					regroup(inRun)
 				end)
 			end
 		end
@@ -438,6 +526,8 @@ function InstanceService.Begin(mode: Mode, id: string, players: { Player }, fall
 	end
 	for _, player in group do
 		starting[player] = true
+		-- An open trade could trade-lock the profile and keep them from leaving.
+		InstanceService.Leaving:Fire(player)
 	end
 	local function release()
 		for _, player in group do
@@ -476,9 +566,28 @@ function InstanceService.Begin(mode: Mode, id: string, players: { Player }, fall
 		release()
 		return false
 	end
+	-- The source party, so the instance server can rebuild it: the first party among those going,
+	-- cut down to its members who are going, led by its leader (else the oldest of them).
+	local party: Rules.PartyData? = nil
+	for _, player in going do
+		local info = PartyService.Describe(player)
+		if info then
+			local members: { number } = {}
+			for _, userId in info.Members do
+				if table.find(userIds, userId) then
+					table.insert(members, userId)
+				end
+			end
+			if #members >= 2 then
+				local leader = if table.find(members, info.Leader) then info.Leader else members[1]
+				party = { Leader = leader, Members = members, LootMode = info.LootMode }
+				break
+			end
+		end
+	end
 	local options = Instance.new("TeleportOptions")
 	options.ReservedServerAccessCode = code
-	options:SetTeleportData(Rules.InstanceData(mode, id, userIds, game.PlaceId))
+	options:SetTeleportData(Rules.InstanceData(mode, id, userIds, game.PlaceId, party))
 	local function onFailed(player: Player)
 		notify({ player }, "Instances.Failed", nil, "Warning")
 		if fallback then
@@ -517,7 +626,14 @@ function InstanceService.GetMode(): Record?
 	if not current then
 		return nil
 	end
-	return { Mode = current.Mode, Id = current.Id, Members = table.clone(current.Members), ReturnPlaceId = current.ReturnPlaceId }
+	local party = current.Party
+	return {
+		Mode = current.Mode,
+		Id = current.Id,
+		Members = table.clone(current.Members),
+		ReturnPlaceId = current.ReturnPlaceId,
+		Party = if party then { Leader = party.Leader, Members = table.clone(party.Members), LootMode = party.LootMode } else nil,
+	}
 end
 
 -- In an instance server: whether this player was admitted to the run.
@@ -574,19 +690,19 @@ function InstanceService.ReturnPlayers(players: { Player }, reason: string)
 	sendHome(players, returnDestination())
 end
 
--- Public server: where a player coming home from a run should arrive, once ("Waystone" or
--- "Gate", and the id); nil afterwards and for everyone else. The caller checks the point exists.
+-- Public server: where a player coming home from a run should arrive ("Waystone" or "Gate", and
+-- the id), read from their profile's PendingReturn (written by the instance server, never from
+-- teleport data) and cleared on the first read, so it is used once; stale ones (older than
+-- ReturnWindow) are dropped. The caller checks the point exists on this floor.
 function InstanceService.TakeReturnTo(player: Player): (string?, string?)
-	if isInstance or returnRead[player] then
+	if isInstance then
 		return nil, nil
 	end
-	returnRead[player] = true
-	local raw, source = joinData(player)
-	local returnTo = Rules.ParseReturn(raw, source, game.PlaceId)
-	if not returnTo then
-		return nil, nil
+	local kind, id, cleared = Rules.TakePending(DataService.Get(player, { "PendingReturn" }), os.time(), I.ReturnWindow)
+	if cleared then
+		DataService.Set(player, { "PendingReturn" }, cleared)
 	end
-	return Rules.SplitReturnTo(returnTo)
+	return kind, id
 end
 
 -- The player's party members (not the player) alive within `radius` of `position`.
@@ -618,13 +734,24 @@ function InstanceService.Init()
 	isInstance = game.PrivateServerId ~= "" and game.PrivateServerOwnerId == 0
 	phase = if isInstance then "Waiting" else "Public"
 	TeleportService.TeleportInitFailed:Connect(onInitFailed)
+	local function track(player: Player)
+		player.OnTeleport:Connect(function(state: Enum.TeleportState)
+			if player.Parent == Players then
+				teleportState[player] = state
+			end
+		end)
+	end
+	Players.PlayerAdded:Connect(track)
+	for _, player in Players:GetPlayers() do
+		track(player)
+	end
 	Players.PlayerRemoving:Connect(function(player: Player)
 		outgoing[player] = nil
 		starting[player] = nil
+		teleportState[player] = nil
 		evaluated[player] = nil
 		admitted[player] = nil
 		begun[player] = nil
-		returnRead[player] = nil
 	end)
 	if not isInstance then
 		return
