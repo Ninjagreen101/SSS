@@ -484,10 +484,24 @@ local function onAction(player: Player, action: string, questId: string, npcId: 
 	end
 end
 
+-- One Talk per player and NPC every Config.Quests.TalkRepeatSeconds (opening a dialogue twice in a
+-- row is one conversation, and spam can't farm Talk objectives or keep an NPC frozen).
+local lastTalk: { [Player]: { [string]: number } } = {}
+
 local function onTalk(player: Player, npcId: string)
 	if not Npcs.Get(npcId) or not sessions[player] or not NpcService.IsNear(player, npcId) then
 		return
 	end
+	local t = os.clock()
+	local mine = lastTalk[player]
+	if not mine then
+		mine = {}
+		lastTalk[player] = mine
+	end
+	if t - (mine[npcId] or -math.huge) < Config.Quests.TalkRepeatSeconds then
+		return
+	end
+	mine[npcId] = t
 	NpcService.Hold(npcId, player)
 	GameEvents.Fire(player, "Talk", npcId)
 end
@@ -648,6 +662,7 @@ function QuestService.Start()
 		end
 	end
 	Players.PlayerRemoving:Connect(function(player: Player)
+		lastTalk[player] = nil
 		sessions[player] = nil
 	end)
 

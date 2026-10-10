@@ -552,9 +552,12 @@ function NpcService.Position(npcId: string): Vector3?
 end
 
 -- `player` is talking to NPC `npcId`: it stops and faces them for Config.Quests.Npcs.TalkHoldSeconds.
+-- Stops a walking NPC to talk. A hold is set once per conversation: another player can't extend
+-- someone else's hold, and the same player can't renew it before it runs out (no freezing an NPC
+-- by spamming Talk).
 function NpcService.Hold(npcId: string, player: Player)
 	local npc = npcs[npcId]
-	if npc then
+	if npc and now() >= npc.HoldUntil then
 		npc.HoldPlayer = player
 		npc.HoldUntil = now() + NPC.TalkHoldSeconds
 	end

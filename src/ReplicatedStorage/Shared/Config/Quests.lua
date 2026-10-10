@@ -6,6 +6,7 @@ local TableUtil = require(script.Parent.Parent.Util.TableUtil)
 return TableUtil.DeepFreeze({
 	MaxActive = 25, -- main + side quests in the log at once (dailies/weeklies don't count)
 	TalkRadius = 14, -- studs from an NPC for Talk / Accept / TurnIn
+	TalkRepeatSeconds = 4, -- one Talk per player and NPC this often (no spam, no frozen NPCs)
 	ReachCheckSeconds = 0.5, -- how often the server checks Reach objectives and regions
 	DailyCount = 3, -- one per daily pool (Kill, Gather, Dungeon)
 	WeeklyCount = 2,
