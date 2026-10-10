@@ -925,7 +925,11 @@ local function showRequest(fromUserId: number, fromName: string, expiresAt: numb
 		end
 		fill.Size = UDim2.fromScale(math.clamp(left / total, 0, 1), 1)
 	end))
+	requestCard = card
+	requestAccept = acceptButton.Instance
 	requestMaid:Add(function()
+		requestCard = nil
+		requestAccept = nil
 		local selected = GuiService.SelectedObject
 		if selected and selected:IsDescendantOf(card) then
 			GuiService.SelectedObject = nil
@@ -1041,6 +1045,29 @@ function TradeController.Init()
 end
 
 function TradeController.Start()
+	-- Gamepad: Select opens the menu hub (Menu context, so the stick drives selection); while a
+	-- request card shows, selection jumps to its Accept button (Decline is one step right).
+	UIController.MenuOpened:Connect(function(id: string)
+		if id == MENU_ID or not requestAccept or not Device.IsGamepad() then
+			return
+		end
+		task.defer(function()
+			local target = requestAccept
+			if target and target.Parent and UIController.IsMenuOpen() then
+				GuiService.SelectedObject = target
+			end
+		end)
+	end)
+	-- Back in gameplay: never leave the stick captured by the card.
+	UIController.MenuClosed:Connect(function()
+		task.defer(function()
+			local card = requestCard
+			local selected = GuiService.SelectedObject
+			if card and selected and selected:IsDescendantOf(card) and not UIController.IsMenuOpen() then
+				GuiService.SelectedObject = nil
+			end
+		end)
+	end)
 	-- Right-click another player's character while the cursor is free.
 	UserInputService.InputBegan:Connect(function(input: InputObject, processed: boolean)
 		if processed or input.UserInputType ~= Enum.UserInputType.MouseButton2 then

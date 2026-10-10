@@ -587,4 +587,75 @@ case("commit fault: every branch rolled back", function()
 	assert(a.Currencies.Gold == 620 and b.Currencies.Gold == 380)
 end)
 
+case("add-pass refusals (Full, GoldCap) leave both live profiles untouched", function()
+	local a, b = newPlayer(1000), newPlayer(LIMITS.MaxGold - 5)
+	local sword = give(a, GEAR, 1)
+	local ore = give(b, MATERIAL, 3)
+	for _ = 1, b.Inventory.Capacity - 1 do
+		give(b, GEAR, 1)
+	end
+	local session = Rules.NewSession()
+	ok(Rules.SetItem(session, 1, a, sword, 1, LIMITS))
+	ok(Rules.SetItem(session, 2, b, ore, 2, LIMITS)) -- partial stack: B's slot doesn't free
+	lockAndConfirm(session, 0)
+	local beforeA, beforeB = TableUtil.DeepCopy(a), TableUtil.DeepCopy(b)
+	local planned, reason, side = Rules.PlanSwap({ a, b }, session, LIMITS, 0)
+	assert(not planned and reason == "Full" and side == 2, `full: {tostring(reason)}`)
+	assert(sameTable(a, beforeA) and sameTable(b, beforeB), "Full refusal changed live data")
+	local s2 = Rules.NewSession()
+	ok(Rules.SetGold(s2, 1, a, 6, LIMITS))
+	ok(Rules.SetItem(s2, 2, b, ore, 3, LIMITS))
+	lockAndConfirm(s2, 0)
+	planned, reason, side = Rules.PlanSwap({ a, b }, s2, LIMITS, 0)
+	assert(not planned and reason == "GoldCap" and side == 2, `cap: {tostring(reason)}`)
+	assert(sameTable(a, beforeA) and sameTable(b, beforeB), "GoldCap refusal changed live data")
+end)
+
+case("SameItem: any other field changing is a different item; Locked / New / AcquiredAt are not", function()
+	local a = newPlayer(0)
+	local sword = give(a, GEAR, 1, "Rare")
+	local item = a.Inventory.Items[sword]
+	local snapshot = Rules.Snapshot(item, 1)
+	assert(Rules.SameItem(snapshot, Rules.Snapshot(item, 1)))
+	item.New, item.AcquiredAt = true, item.AcquiredAt + 50
+	assert(Rules.SameItem(snapshot, Rules.Snapshot(item, 1)), "bookkeeping fields don't count")
+	item.Durability -= 1
+	assert(not Rules.SameItem(snapshot, Rules.Snapshot(item, 1)), "durability counts")
+	item.Durability += 1
+	item.Unique = "SomeEffect"
+	assert(not Rules.SameItem(snapshot, Rules.Snapshot(item, 1)), "a new unique effect counts")
+	item.Unique = snapshot.Unique
+	item.FutureField = 1
+	assert(not Rules.SameItem(snapshot, Rules.Snapshot(item, 1)), "an unknown extra field counts")
+	item.FutureField = nil
+	-- Final check: a field changed after the offer is refused at confirm.
+	local b = newPlayer(0)
+	local session = Rules.NewSession()
+	ok(Rules.SetItem(session, 1, a, sword, 1, LIMITS))
+	lockAndConfirm(session, 0)
+	item.Durability -= 1
+	local planned, reason, side = Rules.PlanSwap({ a, b }, session, LIMITS, 0)
+	assert(not planned and reason == "Changed" and side == 1)
+end)
+
+case("one item in two sessions (server bug guard): only the first swap lands", function()
+	local a, b, c = newPlayer(0), newPlayer(0), newPlayer(0)
+	local sword = give(a, GEAR, 1, "Epic")
+	local beforeTotals = census({ a, b, c })
+	local s1, s2 = Rules.NewSession(), Rules.NewSession()
+	ok(Rules.SetItem(s1, 1, a, sword, 1, LIMITS))
+	ok(Rules.SetItem(s2, 1, a, sword, 1, LIMITS))
+	lockAndConfirm(s1, 0)
+	lockAndConfirm(s2, 0)
+	local p1, _, _, d1 = Rules.PlanSwap({ a, b }, s1, LIMITS, 0)
+	local p2, _, _, d2 = Rules.PlanSwap({ a, c }, s2, LIMITS, 0)
+	assert(p1 and p2, "both plan against the same live state")
+	ok(Rules.Commit({ a, b }, d1))
+	-- The second plan is stale: re-planning against live (as TradeService does) refuses it.
+	local again, reason = Rules.PlanSwap({ a, c }, s2, LIMITS, 0)
+	assert(not again and reason == "Missing", tostring(reason))
+	assert(d2 ~= nil)
+	assert(sameTable(census({ a, b, c }), beforeTotals), "item duplicated or lost")
+end)
+
 print(`test_trade: {passed} cases passed`)
