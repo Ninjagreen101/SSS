@@ -44,6 +44,7 @@ local CombatService = require(script.Parent.CombatService)
 local StatusService = require(script.Parent.StatusService)
 local TargetService = require(script.Parent.TargetService)
 local AnalyticsService = require(script.Parent.AnalyticsService)
+local GameEvents = require(script.Parent.GameEvents)
 
 type PlayerData = Types.PlayerData
 type Mutation = (draft: PlayerData) -> (boolean, string?)
@@ -164,18 +165,27 @@ function InventoryService.Transact(player: Player, mutate: Mutation): (boolean, 
 	return true, reason
 end
 
--- Gives fresh items (loot, quests, dev tools). Rarity is a minimum.
+-- Gives fresh items (caches, chests, dev tools). Rarity is a minimum. Counts as collecting them
+-- (GameEvents Collect); quest rewards use Transact directly so they never count toward a quest.
 function InventoryService.Give(player: Player, defId: string, count: number, rarity: string?): (boolean, string?)
-	return InventoryService.Transact(player, function(draft: PlayerData): (boolean, string?)
+	local ok, reason = InventoryService.Transact(player, function(draft: PlayerData): (boolean, string?)
 		return Rules.Grant(draft, defId, count, random, rarity)
 	end)
+	if ok then
+		GameEvents.Fire(player, "Collect", defId, count)
+	end
+	return ok, reason
 end
 
--- Adds an already-rolled item (loot drops carry their rolls).
+-- Adds an already-rolled item (loot drops carry their rolls). Counts as collecting it.
 function InventoryService.AddItem(player: Player, item: Types.ItemInstance, count: number): (boolean, string?)
-	return InventoryService.Transact(player, function(draft: PlayerData): (boolean, string?)
+	local ok, reason = InventoryService.Transact(player, function(draft: PlayerData): (boolean, string?)
 		return Rules.Add(draft, item, count)
 	end)
+	if ok then
+		GameEvents.Fire(player, "Collect", item.DefId, count)
+	end
+	return ok, reason
 end
 
 function InventoryService.IsAlive(player: Player): boolean

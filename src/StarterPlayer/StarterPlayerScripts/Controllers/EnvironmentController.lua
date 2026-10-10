@@ -4,7 +4,8 @@
 	The sky, light and sound of the floor, all computed on the client from a few server attributes
 	(EnvironmentService), so nothing about the look of the world costs network traffic.
 
-	- Clock: Lighting.ClockTime from Workspace.DayEpoch / DayLength and server time, every frame.
+	- Clock: Lighting.ClockTime from Workspace.DayEpoch / DayLength and server time, every frame
+	  (SetClockOverride pins a local hour instead, e.g. the tutorial's night).
 	- Grade: brightness, ambient colours, atmosphere, colour correction and bloom blended between
 	  the keyframes in Config.Environment, then weather applied on top (cross-faded over
 	  WeatherBlendSeconds when the weather changes).
@@ -50,7 +51,14 @@ local localPlayer = Players.LocalPlayer
 
 -- CLOCK ---------------------------------------------------------------------------------------
 
+-- A local clock that replaces the shared day (the tutorial's night on the docks); nil = shared.
+local clockOverride: number? = nil
+
 local function clock(): number
+	local override = clockOverride
+	if override then
+		return override
+	end
 	local epoch = Workspace:GetAttribute("DayEpoch")
 	local length = Workspace:GetAttribute("DayLength")
 	if type(epoch) ~= "number" or type(length) ~= "number" or length <= 0 then
@@ -60,6 +68,12 @@ local function clock(): number
 	return (t - math.floor(t)) * 24
 end
 EnvironmentController.GetClock = clock
+
+-- Pins this client's clock to `hour` (0..24) until called with nil. Light, grade, night lamps
+-- and ambience all follow it; the server's day is unaffected.
+function EnvironmentController.SetClockOverride(hour: number?)
+	clockOverride = if hour then hour % 24 else nil
+end
 
 local function isNightAt(hour: number, offset: number): boolean
 	return hour >= LIGHTS.On + offset or hour < LIGHTS.Off - offset

@@ -136,4 +136,60 @@ Migrations.Steps[5] = function(data: { [string]: any })
 	end
 end
 
+-- v6 (Phase 11): Quests gain Dailies / Weeklies / Rerolls and their Progress is keyed by objective
+-- index as a string ("1", "2", ...); new Map and AchievementProgress branches; Tutorial becomes
+-- { Step, Done, Skipped }. A profile saved before v6 belongs to someone who has already played, so
+-- its tutorial is marked done and the docks never pull a veteran back. Malformed branches are
+-- dropped here and refilled from the Template by Reconcile.
+Migrations.Steps[6] = function(data: { [string]: any })
+	local quests = data.Quests
+	if type(quests) ~= "table" then
+		quests = {}
+		data.Quests = quests
+	end
+	for _, key in { "Active", "Completed", "Dailies", "Weeklies" } do
+		if quests[key] ~= nil and type(quests[key]) ~= "table" then
+			quests[key] = nil
+		end
+	end
+	if quests.Rerolls ~= nil and type(quests.Rerolls) ~= "number" then
+		quests.Rerolls = nil
+	end
+	if type(quests.Active) == "table" then
+		for id, state in quests.Active do
+			if type(state) ~= "table" then
+				quests.Active[id] = nil
+				continue
+			end
+			local fixed: { [string]: number } = {}
+			if type(state.Progress) == "table" then
+				for key, value in state.Progress do
+					local index = tonumber(key)
+					if type(value) == "number" and index and index >= 1 and index % 1 == 0 then
+						fixed[tostring(index)] = value
+					end
+				end
+			end
+			state.Progress = fixed
+			if type(state.Stage) ~= "number" then
+				state.Stage = 1
+			end
+			if type(state.StartedAt) ~= "number" then
+				state.StartedAt = 0
+			end
+		end
+	end
+	for _, branch in { "Map", "AchievementProgress" } do
+		if data[branch] ~= nil and type(data[branch]) ~= "table" then
+			data[branch] = nil
+		end
+	end
+
+	-- New profiles start from the Template at the current version and never run this step, so
+	-- every profile here was saved by an earlier build: its owner has played.
+	local old = data.Tutorial
+	local skipped = type(old) == "table" and old.Skipped == true
+	data.Tutorial = { Step = 0, Done = true, Skipped = skipped }
+end
+
 return Migrations

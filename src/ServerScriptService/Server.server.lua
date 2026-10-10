@@ -55,6 +55,11 @@ local ORDER = {
 	"SecretService",
 	"DungeonService",
 	"GuardianService",
+	"QuestService",
+	"TutorialService", -- right after QuestService: it gives F1_M01 at the end (QuestService.Give)
+	"AchievementService",
+	"NpcService",
+	"MapService",
 	"DevService",
 }
 

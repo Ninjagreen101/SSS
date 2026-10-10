@@ -300,6 +300,100 @@ local UITheme = {
 		MaxDistance = 40,
 	},
 
+	-- Quests (Phase 11): the HUD tracker, the Quest Log, world markers and quest toasts.
+	Quests = {
+		KindColors = {
+			Main = hex("#FFD25A"), -- gold: the story
+			Side = hex("#5ED3F3"),
+			Daily = hex("#3FE0D0"),
+			Weekly = hex("#C38BFF"),
+			Tutorial = hex("#D6F1FF"),
+		} :: { [string]: Color3 },
+		Ready = hex("#FFD25A"),
+		Available = hex("#FFD25A"),
+		Done = hex("#6EE07A"),
+		TrackerWidth = 290,
+		TrackerMaxQuests = 3,
+		TrackerMaxLines = 5,
+		TrackerGap = 12, -- px below the minimap
+		DistanceRefresh = 0.25, -- seconds between distance updates
+		ProgressToastInterval = 1.5, -- seconds between progress toasts for one quest
+		MarkerSize = Vector2.new(64, 64),
+		MarkerLift = 3.2, -- studs above an NPC's head for "!" / "?"
+		BeamHeight = 60, -- studs: the light pillar at the tracked objective
+		BeamWidth = 1.6,
+		ObjectiveMarkerLift = 4,
+	},
+
+	-- Dialogue box (DialogueController).
+	Dialogue = {
+		Width = 900,
+		Height = 210,
+		Bottom = 28, -- px above the screen bottom
+		ChoiceWidth = 330,
+		ChoiceHeight = 48, -- touch-friendly (>= 44)
+		CharsPerSecond = 48,
+		BlipEvery = 2, -- characters between voice blips
+		BlipVolume = 0.22,
+		CameraEase = 0.6, -- seconds to frame the NPC
+		CameraRelease = 0.5,
+		CameraDistance = 8, -- studs from the NPC's head
+		CameraSide = 2.6, -- studs to the side, so the NPC sits left of centre
+		CameraFov = 50,
+		WalkAwayFactor = 1.6, -- dialogue closes beyond TalkRadius x this
+	},
+
+	-- Player nameplates (NameplateController).
+	Nameplate = {
+		Size = Vector2.new(240, 58),
+		StudsOffset = Vector3.new(0, 2.4, 0),
+		FadeStart = 70, -- studs from the camera where the plate starts to fade
+		MaxDistance = 110,
+		Refresh = 0.1,
+		Title = hex("#E7C46A"), -- gold serif title under the name
+	},
+
+	-- Map (M) and the minimap (MapController).
+	Map = {
+		Regions = {
+			Town = hex("#5C5A55"),
+			Harbour = hex("#1F4E73"),
+			OldWharf = hex("#4A3E33"),
+			TidepoolMarsh = hex("#3E5B45"),
+			RustwoodForest = hex("#5B3F2B"),
+			Downs = hex("#6B7451"),
+			Cistern = hex("#2E3B4A"),
+			FirstGate = hex("#5E5470"),
+		} :: { [string]: Color3 },
+		Background = hex("#0B1D33"), -- sea / outside the floor
+		Fog = hex("#030914"),
+		FogTransparency = 0.08,
+		Waystone = hex("#3FE0D0"),
+		WaystoneUndiscovered = hex("#62809F"),
+		Quest = hex("#FFD25A"),
+		Pin = hex("#FF7A5C"),
+		Player = hex("#E8F1FA"),
+		IconSize = 26,
+		MinZoom = 1,
+		MaxZoom = 6,
+		ZoomStep = 1.18, -- per wheel notch
+		GamepadPanSpeed = 700, -- px per second at full stick
+		GamepadZoomSpeed = 1.6, -- zoom factor per second at full stick
+		PickRadius = 22, -- px: a click this close to an icon picks it
+		MinimapSize = 172,
+		MinimapSizeTouch = 128,
+		MinimapGap = 8, -- px below the Pressure icon
+		MinimapIconSize = 16,
+	},
+
+	-- Big centred banners (achievements, quest completions).
+	Banner = {
+		Width = 520,
+		Top = 110,
+		Duration = 3.6,
+		Gold = hex("#E7C46A"),
+	},
+
 	-- Reference resolution: UI is authored at this height and scaled.
 	ReferenceHeight = 900,
 	ScaleMin = 0.62,

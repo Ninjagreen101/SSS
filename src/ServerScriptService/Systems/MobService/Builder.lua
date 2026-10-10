@@ -73,6 +73,10 @@ local function extra(model: Model, spec: Mobs.BodyPart, scale: number)
 	part.Parent = model
 end
 
+-- One welded detail part (Shared.Data.Mobs BodyPart) on an R15 rig; NpcService dresses town NPCs
+-- with the same format.
+Builder.AddExtra = extra
+
 -- MESH BODIES ---------------------------------------------------------------------------------
 
 -- Template attributes written by KitLibrary.Prepare for body pieces.

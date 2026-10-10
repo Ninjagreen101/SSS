@@ -52,6 +52,7 @@ local VitalsService = require(script.Parent.VitalsService)
 local CombatService = require(script.Parent.CombatService)
 local StatusService = require(script.Parent.StatusService)
 local PressureService = require(script.Parent.PressureService)
+local GameEvents = require(script.Parent.GameEvents)
 
 local A = Attributes.Names
 local C = Config.Current
@@ -147,6 +148,7 @@ local function addStacks(player: Player, state: State, amount: number)
 	push(player, state)
 	if state.Stacks > before then
 		Net.Fire("ResonanceTriggered", player, state.Stacks)
+		GameEvents.Fire(player, "Resonance", "", state.Stacks)
 		if state.Stacks >= C.Resonance.MaxStacks and isAttuned(player) then
 			Net.Fire("Notify", player, "Toasts.ConfluenceReady", {}, "Success")
 		end

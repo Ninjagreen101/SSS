@@ -13,6 +13,7 @@ local Log = require(Shared.Util.Log)
 
 local DataService = require(script.Parent.DataService)
 local InventoryService = require(script.Parent.InventoryService)
+local GameEvents = require(script.Parent.GameEvents)
 
 local log = Log.new("Rewards")
 
@@ -49,7 +50,12 @@ function Rewards.Grant(player: Player, spec: string?, gold: number?)
 		end
 	end
 	if gold and gold > 0 then
-		DataService.Increment(player, { "Currencies", "Gold" }, gold, 0, Config.Economy.MaxGold)
+		local data = DataService.GetData(player)
+		local before = if data then data.Currencies.Gold else 0
+		local after = DataService.Increment(player, { "Currencies", "Gold" }, gold, 0, Config.Economy.MaxGold)
+		if after and after > before then
+			GameEvents.Fire(player, "Gold", "", after - before)
+		end
 	end
 end
 

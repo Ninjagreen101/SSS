@@ -841,11 +841,54 @@ local Strings = {
 		MapWaystone = "Waystone",
 		MapTravel = "Travel here",
 		MapTravelHint = "Stand at a Waystone to travel",
+		TravelArrived = "You step out of the Current at {name}.",
+		TravelErrors = {
+			NotAtWaystone = "Stand at a Waystone to travel.",
+			Unknown = "You haven't attuned to that Waystone yet.",
+			Cooldown = "The Current is still settling. Try again shortly.",
+			Combat = "You can't travel while the Current is turbulent.",
+			Busy = "You can't travel right now.",
+		} :: { [string]: string },
 		MapPinAdd = "Place pin",
 		MapPinRemove = "Remove pin",
 		MapFloor = "Floor {floor}: {name}",
 		MapYou = "You",
 		MapUnexplored = "Unexplored",
+		-- Phase 11 client UI (QuestController, DialogueController, AchievementController, MapController)
+		InProgress = "In progress",
+		Tracked = "Tracked",
+		NoneTracked = "No quest tracked",
+		ResetDays = "{days}d {hours}h",
+		ChoiceReady = "{name} (ready)",
+		ChoiceProgress = "{name} (in progress)",
+		RewardItem = "{name} x{count}",
+		AchievementsSummary = "{done} / {total} unlocked",
+		AchievementReward = "+{shards} Spire Shards",
+		TitleReward = "Title: {title}",
+		Unlocked = "Unlocked",
+		MapTravelTo = "Travel to {name}?",
+		MapNotDiscovered = "Not yet discovered",
+		MapHere = "You are here",
+		MapFloorLocked = "Not yet reached",
+		MapNoData = "No map of this floor yet",
+		MapPinsFull = "You can place {count} pins on a floor.",
+		MapQuest = "Quest objective",
+		MapPin = "Pin",
+		MapRecenter = "Centre on me",
+		MapControlsMouse = "Drag to pan  ·  Wheel to zoom  ·  Right-click to place a pin",
+		MapControlsTouch = "Drag to pan  ·  Pinch to zoom  ·  Hold to place a pin",
+		MapControlsGamepad = "Left stick: pan  ·  Right stick: zoom  ·  A: select  ·  X: pin  ·  LB / RB: floor",
+		MapDiscovered = "Discovered",
+		MapAvailable = "Has a task for you",
+		MapOpenQuest = "Open in Quest Log",
+		MapZoomIn = "Zoom in",
+		MapZoomOut = "Zoom out",
+		MapPrevFloor = "Previous floor",
+		MapNextFloor = "Next floor",
+		DialogueSkipMouse = "Click to continue",
+		DialogueSkipTouch = "Tap to continue",
+		DialogueSkipGamepad = "Press A to continue",
+		PlateLevel = "Lv {level}",
 		Errors = {
 			TooFar = "Come closer to speak with them.",
 			NotAvailable = "That quest isn't available.",
@@ -854,6 +897,46 @@ local Strings = {
 			NoRerolls = "No rerolls left today.",
 			BagFull = "Your bag is full. Make room, then hand it in.",
 		} :: { [string]: string },
+	},
+
+	-- Phase 11: the docks tutorial (TutorialService, TutorialController). Prompts stay at six
+	-- words or fewer; {key} is the bound key or button for the current device.
+	Tutorial = {
+		Welcome = "Welcome to Lowharbor, Climber.",
+		Prompts = {
+			Move = "Walk to the lantern",
+			Sprint = "Hold {key} to sprint",
+			SprintTouch = "Push the stick fully to sprint",
+			Combo = "Strike the crab",
+			Dodge = "Dodge the sailor's swing",
+			Parry = "Block just as it strikes",
+			Spell = "Cast Tide Bolt",
+			Resonance = "Land hits to build Resonance",
+			Finish = "Defeat the Drowned Sailor",
+		} :: { [string]: string },
+		Glyphs = {
+			MoveKeys = "W A S D",
+			MoveStick = "Left Stick",
+			MoveTouch = "Thumbstick",
+		} :: { [string]: string },
+		Count = "{done}/{total}",
+		Tutor = "Old Pell",
+		Callouts = {
+			Combo = "Go on, give it a few whacks!",
+			DodgeWatch = "Here it comes. Roll clear!",
+			ParryWatch = "Steady... wait for it...",
+			ParryNow = "Now! Block as the blade falls!",
+			ParryGood = "Ha! That's the way!",
+			Spell = "Feel the tide? Let it fly!",
+			Finish = "He's tiring. Finish him!",
+		} :: { [string]: string },
+		ResonanceTitle = "Resonance!",
+		ResonanceBody = "Hits and spells build it. At 5 stacks, unleash a Confluence.",
+		Continue = "Continue",
+		Skip = "Skip tutorial",
+		FinishedTitle = "Ready to climb",
+		Finished = "Tutorial complete. Brannoc waits on the quay.",
+		Skipped = "Tutorial skipped. Brannoc waits on the quay.",
 	},
 
 	-- Phase 10: Floor Guardians (GuardianService, GuardianController).
@@ -955,6 +1038,438 @@ local Strings = {
 		Cistern = "The Sunken Cistern",
 		FirstGate = "The First Gate",
 	} :: { [string]: string },
+
+	-- Phase 11: quests, NPCs and achievements (Data/Quests, Data/Npcs, Data/Achievements).
+	Quests = {
+		-- MAIN STORY ---------------------------------------------------------------------------
+		F1_M01 = {
+			Name = "Salt in the Lungs",
+			Summary = "You woke on the Lowharbor quay. The Dockmaster wants a word.",
+			Objectives = { "Speak with Brannoc Hale on the quay" },
+			Offer = {
+				"Easy, easy. Cough it up. The sea does that to all who wash in.",
+				"You came up from below, didn't you? Another Climber, then.",
+				"Talk to me when you can stand straight.",
+			},
+			Progress = { "Come on over. Don't make an old man shout across the quay." },
+			Complete = {
+				"There. Colour's back in your face. This is Lowharbor, first of the Spire's floors.",
+				"Every Climber starts on this quay. Few finish the Climb. Go see Warden Ysolde at the Guild.",
+			},
+		},
+		F1_M02 = {
+			Name = "A Climber's Mark",
+			Summary = "Brannoc sends you to the Climbers' Guild to be marked.",
+			Objectives = { "Climb to the Guild steps", "Speak with Warden Ysolde" },
+			Offer = {
+				"No mark, no Climb. That's the Guild's rule, and it's a fair one.",
+				"Up the avenue to the Guild steps. Ysolde Tarn keeps the register.",
+			},
+			Progress = { "The Guild is at the top of the Climb. Follow the lamps." },
+			Complete = {
+				"Another name for the register. Hold still while I set the mark.",
+				"The Spire counts its Climbers, and what it counts, it remembers. Do not make it regret you.",
+			},
+		},
+		F1_M03 = {
+			Name = "Rest at the Stone",
+			Summary = "Waystones are the Climber's lifeline. Find two.",
+			Objectives = { "Discover 2 Waystones" },
+			Offer = {
+				"Waystones hold the Current steady. Touch one and the Spire remembers where you stood.",
+				"Find two. Tidewatch Steps and the Climbers' Rest are the nearest.",
+			},
+			Progress = { "Two stones. Touch them and feel the hum." },
+			Complete = {
+				"You felt it, then. The Current in the stone.",
+				"Die near a Waystone and you wake beside it. Never forget where the last one is.",
+			},
+		},
+		F1_M04 = {
+			Name = "Teeth of the Tide",
+			Summary = "Bilgecrabs infest the old wharf. Thin them out.",
+			Objectives = { "Slay Bilgecrabs near the Old Wharf" },
+			Offer = {
+				"Bilgecrabs have swarmed the wharf shallows. They cut nets, boots and ankles.",
+				"Cull six. Watch for the claw before it falls, and strike when it recovers.",
+			},
+			Progress = { "The crabs haven't gone anywhere. Six, Climber." },
+			Complete = {
+				"Six shells. Good. The harbor can breathe a little easier.",
+				"Their shells make decent armour, if you know a good Armorer.",
+			},
+		},
+		F1_M05 = {
+			Name = "The Shrine of Currents",
+			Summary = "Attune to the Current at the Shrine in the Rotunda.",
+			Objectives = { "Attune at the Shrine of Currents" },
+			Offer = {
+				"Steel will carry you far. The Current carries you farther.",
+				"The Shrine in the Rotunda will attune you. Choose well. It shapes how you fight.",
+			},
+			Progress = { "The Shrine is in the Rotunda. Touch it and choose." },
+			Complete = {
+				"I can see it in you now. The Current answers your hand.",
+				"Take this blade. It carries the old tide-forging. Use steel and spell together.",
+			},
+		},
+		F1_M06 = {
+			Name = "Lights in the Reeds",
+			Summary = "Wisps drift over Tidepool Marsh. The Reedwarden wants them gone.",
+			Objectives = { "Reach the Reedwarden Post", "Slay Marsh Wisps" },
+			Offer = {
+				"The marsh is lit at night, and not by any friend. Wisps lure the weary into the black water.",
+				"Reedwarden Osk keeps the post. Go to him. He will tell you how to put the lights out.",
+			},
+			Progress = { "The reeds are quiet. Too quiet. Four wisps, Climber." },
+			Complete = {
+				"Wisps are lost souls bound to the Current. Don't pity them, not in the reeds.",
+				"Four fewer lamps tonight. Take this and keep to the boardwalks.",
+			},
+		},
+		F1_M07 = {
+			Name = "What the Sailors Took",
+			Summary = "Drowned sailors haunt the Old Wharf, clutching what they stole.",
+			Objectives = { "Reach the Old Wharf", "Slay Drowned Sailors" },
+			Offer = {
+				"Drowned men keep walking the Old Wharf, as if the ships still sailed.",
+				"They hoard what the tide gave them. Go and put them to rest. Bring back what's the Watch's.",
+			},
+			Progress = { "The wharf's still full of them. Five, Climber." },
+			Complete = {
+				"They were crew of the first ships to reach the Spire, so the old rolls say.",
+				"The sea took them, the Spire kept them. Take your pay, you've earned it.",
+			},
+		},
+		F1_M08 = {
+			Name = "Hunters in Rustwood",
+			Summary = "Rustwood Stalkers have turned the forester's camp into a siege.",
+			Objectives = { "Discover the Rustwood Camp", "Slay Rustwood Stalkers" },
+			Offer = {
+				"Stalkers have the forest. Hesk Thornwell holds the camp, barely.",
+				"Reach him. Then help him clear the trees.",
+			},
+			Progress = { "Hesk is waiting. Rustwood doesn't forgive hesitation." },
+			Complete = {
+				"Hmph. Five down. The wood sounds different.",
+				"Rust goes into the bark, the bark into the wolves. The Spire changes all it touches.",
+			},
+		},
+		F1_M09 = {
+			Name = "The Lagoon's Lord",
+			Summary = "A Brinehulk lurks in the lagoon. Strike its exposed back.",
+			Objectives = { "Slay the Brinehulk in the lagoon" },
+			Offer = {
+				"A Brinehulk has taken the lagoon. It will not fall to a front charge.",
+				"Strike its back, where the shell is thin. Parry the slam, then circle.",
+			},
+			Progress = { "The lagoon is waiting. Circle it. Strike from behind." },
+			Complete = {
+				"The Brinehulk is down. You do well, Climber.",
+				"Few thought a fresh Climber could fell one. Now there is another door to open. Go see Ilse.",
+			},
+		},
+		F1_M10 = {
+			Name = "Beneath the Pumphouse",
+			Summary = "The Archivist's records point to the Sunken Cistern.",
+			Objectives = { "Speak with Ilse Marrow", "Clear the Sunken Cistern" },
+			Offer = {
+				"Every Floor has a Keeper. Ours is the Brinewarden, and he guards the First Gate.",
+				"Records say the Warden's seal lies in the Sunken Cistern, under the old pumphouse.",
+				"Go below. Bring back what you find.",
+			},
+			Progress = { "The Cistern is waiting. Bring friends if you can." },
+			Complete = {
+				"The seal was there. And these scratches, a Climber's, not the Warden's.",
+				"Someone reached the Gate before you, and did not return. Take this and be careful.",
+			},
+		},
+		F1_M11 = {
+			Name = "The Keeper's Price",
+			Summary = "Ysolde warns you of the Gate and what its Keeper demands.",
+			Objectives = { "Speak with Warden Ysolde", "Discover the Gate Approach" },
+			Offer = {
+				"The Brinewarden does not die. It waits. Every Climber who reached the Gate paid with blood.",
+				"Go to the Gate Approach. See it for yourself, then come back to me.",
+			},
+			Progress = { "The Approach is above the Downs. Take care." },
+			Complete = {
+				"You saw it. The Gate is real, and so is its Keeper.",
+				"I will not lie to you: many fell there. But you are ready. Strike when the moment is right.",
+			},
+		},
+		F1_M12 = {
+			Name = "The First Gate",
+			Summary = "Defeat the Brinewarden and open the way up the Spire.",
+			Objectives = { "Defeat the Brinewarden" },
+			Offer = {
+				"The Gate is yours to open. Fell the Brinewarden and the Spire's next Floor opens to you.",
+				"May the Current carry you.",
+			},
+			Progress = { "The Gate is waiting. So is the Keeper." },
+			Complete = {
+				"The First Gate stands open. A Climber has passed it at last.",
+				"Floor 2 awaits. But remember, Lowharbor, and the people who kept the lamps lit.",
+			},
+		},
+
+		-- SIDE QUESTS --------------------------------------------------------------------------
+		F1_S01 = {
+			Name = "Nets and Knots",
+			Summary = "Brannoc needs marsh fibre to rig the quay's torn nets.",
+			Objectives = { "Gather Marsh Fibre" },
+			Offer = {
+				"My nets are rags. Bring me eight bundles of marsh fibre and I'll see you right.",
+				"Cut it from the reeds. Mind the wisps.",
+			},
+			Progress = { "Eight bundles of fibre. The reeds are plenty, if you're patient." },
+			Complete = {
+				"Good stuff. The nets will hold again.",
+				"Here, a pair of gloves. They held up better than my nets did.",
+			},
+		},
+		F1_S02 = {
+			Name = "What the Tide Brings",
+			Summary = "Old Pell wants shells and scrap from the shore.",
+			Objectives = { "Gather Brine Shells", "Gather Iron Scrap" },
+			Offer = {
+				"Aye, the tide brings all sorts. Shell for my needles, scrap for the weights.",
+				"Bring me both, and I'll pay in something shinier than coin.",
+			},
+			Progress = { "Shells and scrap. Not much to ask of a Climber." },
+			Complete = {
+				"That'll do nicely. These came out of the same tide, years ago.",
+				"Funny. The sea gives back what it likes, just not who.",
+			},
+		},
+		F1_S03 = {
+			Name = "The Floors Above",
+			Summary = "Ilse wants proof that secret places remain on Floor 1.",
+			Objectives = { "Find the hidden Smugglers' Cove", "Find the Shrine of the Drowned Reed" },
+			Offer = {
+				"The records speak of hidden places. A smugglers' cove, and a shrine in the reeds.",
+				"If they exist, they will tell us how the Floors above were built.",
+			},
+			Progress = { "A cove and a shrine. The records say they exist." },
+			Complete = {
+				"Both are real. The Floors are older than the Guild thinks.",
+				"Each tier is a shell around the last. Keep this. You've earned it.",
+			},
+		},
+		F1_S04 = {
+			Name = "Brine Pearls",
+			Summary = "Tobin Quill pays well for tide pearls.",
+			Objectives = { "Gather Tide Pearls" },
+			Offer = {
+				"Tide pearls! Customers beg me for them, and I have none. Bring me three.",
+				"Sailors and stalkers sometimes carry them. Don't ask where they found them.",
+			},
+			Progress = { "Three pearls. Think of the profit, my friend." },
+			Complete = {
+				"Beautiful. Hold one up to the light and you can see the Current inside.",
+				"A fair price, and a trinket for your trouble.",
+			},
+		},
+		F1_S05 = {
+			Name = "Candles for the Drowned",
+			Summary = "Sister Caddith wants wisp light for the drowned's candles.",
+			Objectives = { "Gather Wisp Essence", "Carry the light to the Old Wharf" },
+			Offer = {
+				"The drowned wander because no light guides them home. I would light candles for them.",
+				"Bring wisp essence, and carry the light to the Old Wharf.",
+			},
+			Progress = { "The wharf waits for its candles." },
+			Complete = {
+				"Thank you. The wharf is brighter tonight.",
+				"The sea took them, but the Spire holds them. May they find rest.",
+			},
+		},
+		F1_S06 = {
+			Name = "Parry Drill",
+			Summary = "Captain Maren drills you in the parry.",
+			Objectives = { "Parry enemy strikes" },
+			Offer = {
+				"Parry is the Watch's oldest lesson. Ten clean parries, soldier.",
+				"Block the instant the blow lands. Early or late, you eat steel.",
+			},
+			Progress = { "Ten parries. Keep at it." },
+			Complete = {
+				"Better. Your timing improves.",
+				"Take this charm. The Watch gives it to those who learn.",
+			},
+		},
+		F1_S07 = {
+			Name = "The Watch Needs Steel",
+			Summary = "The Watch's stores are empty. Forge a blade.",
+			Objectives = { "Forge a Lanternedge Arcblade" },
+			Offer = {
+				"The Watch's armoury is bare. Forge a Lanternedge Arcblade. Scrap, rustwood and wisp essence.",
+				"Bring it to me when done.",
+			},
+			Progress = { "A blade, soldier. The forge is open." },
+			Complete = {
+				"Fine work. It will serve.",
+				"Take this and keep the forge hot.",
+			},
+		},
+		F1_S08 = {
+			Name = "Lanterns in the Reeds",
+			Summary = "Lantern Acolytes lurk by the Reedwarden Post.",
+			Objectives = { "Slay Lantern Acolytes" },
+			Offer = {
+				"Acolytes in lamp-robes wander the marsh. They worship the lights.",
+				"Put five down. They don't listen.",
+			},
+			Progress = { "The lamps are lit. Five acolytes." },
+			Complete = {
+				"Quiet again. Thank you.",
+				"They were Climbers once, I think. The Current took them.",
+			},
+		},
+		F1_S09 = {
+			Name = "Rust on the Bark",
+			Summary = "Hesk wants the stalkers culled and fresh rustwood cut.",
+			Objectives = { "Slay Rustwood Stalkers", "Gather Rustwood" },
+			Offer = {
+				"Stalkers again, and the bark's gone bad. Kill four. Cut eight lengths of rustwood.",
+				"Fresh wood or none.",
+			},
+			Progress = { "Four stalkers, eight lengths. I'll wait." },
+			Complete = {
+				"Good wood. Strong.",
+				"Take these. A forester's thanks.",
+			},
+		},
+		F1_S10 = {
+			Name = "Fish That Glow",
+			Summary = "Fen dares you to follow the glowing fish through the canals.",
+			Objectives = { "Reach the North Canal Falls", "Reach the South Canal Falls", "Reach the Canal Mouth" },
+			Offer = {
+				"Psst. Glowing fish! In the canals, where the Current pours down.",
+				"Follow them. North falls, south falls, then the mouth. Bet you can't.",
+			},
+			Progress = { "Not done yet? The fish are getting away." },
+			Complete = {
+				"You saw them! The Current makes them glow.",
+				"Here, your share. Don't tell the Watch.",
+			},
+		},
+
+		-- DAILIES AND WEEKLIES (no dialogue) ------------------------------------------------------
+		F1_DK01 = { Name = "Crab Cull", Summary = "Thin the Bilgecrabs along the shore.", Objectives = { "Slay Bilgecrabs" } },
+		F1_DK02 = { Name = "Wharf Watch", Summary = "Put drowned sailors back to rest.", Objectives = { "Slay Drowned Sailors" } },
+		F1_DK03 = { Name = "Snuffing the Lights", Summary = "Put out the marsh wisps.", Objectives = { "Slay Marsh Wisps" } },
+		F1_DK04 = { Name = "Forest Patrol", Summary = "Keep Rustwood's stalkers at bay.", Objectives = { "Slay Rustwood Stalkers" } },
+		F1_DG01 = { Name = "Scrap Run", Summary = "Gather iron scrap for the smiths.", Objectives = { "Gather Iron Scrap" } },
+		F1_DG02 = { Name = "Fibre Bundles", Summary = "Cut marsh fibre for the weavers.", Objectives = { "Gather Marsh Fibre" } },
+		F1_DG03 = { Name = "Wisp Light", Summary = "Collect essence for the Cathedral's lamps.", Objectives = { "Gather Wisp Essence" } },
+		F1_DG04 = { Name = "Timber Order", Summary = "Cut rustwood for the camp's carpenters.", Objectives = { "Gather Rustwood" } },
+		F1_DD01 = { Name = "Down the Cistern", Summary = "Clear the Sunken Cistern once.", Objectives = { "Clear the Sunken Cistern" } },
+		F1_DD02 = { Name = "Leech Hunt", Summary = "Thin the Cistern Leeches.", Objectives = { "Slay Cistern Leeches" } },
+		F1_DD03 = { Name = "Cistern Twice", Summary = "Clear the Sunken Cistern twice.", Objectives = { "Clear the Sunken Cistern" } },
+		F1_W01 = { Name = "Weekly Cull", Summary = "Keep Floor 1 safe. Slay sixty enemies.", Objectives = { "Slay enemies" } },
+		F1_W02 = { Name = "Cistern Regular", Summary = "Delve the Sunken Cistern five times.", Objectives = { "Clear the Sunken Cistern" } },
+		F1_W03 = { Name = "Warden's Toll", Summary = "Fell the Brinewarden once this week.", Objectives = { "Defeat the Brinewarden" } },
+		F1_W04 = { Name = "Drill and Discipline", Summary = "Parry and unleash Confluences.", Objectives = { "Parry enemy strikes", "Unleash Confluences" } },
+	} :: { [string]: { Name: string, Summary: string, Objectives: { string }, Offer: { string }?, Progress: { string }?, Complete: { string }? } },
+
+	Npcs = {
+		Brannoc = {
+			Name = "Brannoc Hale",
+			Role = "Dockmaster",
+			Greetings = { "Mind the quay, it's slick tonight.", "Another Climber. The sea keeps sending them." },
+			Idle = { "Ropes don't tie themselves.", "I've watched that lighthouse all my life." },
+		},
+		Ysolde = {
+			Name = "Ysolde Tarn",
+			Role = "Warden of the Climbers' Guild",
+			Greetings = { "Climber. State your business.", "The Guild is watching." },
+			Idle = { "Stand tall. The Spire sees weakness.", "The Gate does not forgive hesitation." },
+		},
+		Pell = {
+			Name = "Old Pell",
+			Role = "Net-mender",
+			Greetings = { "One eye's enough for this net, lad.", "Ah, fresh Climber. Sit and listen." },
+			Idle = { "The tide's moods are older than I am.", "Knot by knot, lad." },
+		},
+		Ilse = {
+			Name = "Ilse Marrow",
+			Role = "Archivist of the Library of Floors",
+			Greetings = { "Quietly, please. The records are old.", "Ah, a visitor. Rare." },
+			Idle = { "Every Floor is a chapter.", "The ink never dries here." },
+		},
+		Tobin = {
+			Name = "Tobin Quill",
+			Role = "Provisioner",
+			Greetings = { "Welcome, welcome! Best prices in Lowharbor!", "Supplies for the Climb?" },
+			Idle = { "Never climb hungry.", "Coin's all well, but trade is better." },
+		},
+		Caddith = {
+			Name = "Sister Caddith",
+			Role = "Cathedral of the Ascent",
+			Greetings = { "Peace be on you, Climber.", "The Cathedral is open to all." },
+			Idle = { "We light the dark so the dark does not forget us.", "Pray, if you will." },
+		},
+		Maren = {
+			Name = "Maren Dusk",
+			Role = "Captain of the Watch",
+			Greetings = { "State your rank.", "Watch is short of hands. Climbers will do." },
+			Idle = { "Eyes up. Shield up.", "Discipline keeps us alive." },
+		},
+		Osk = {
+			Name = "Reedwarden Osk",
+			Role = "Warden of the Marsh",
+			Greetings = { "Stay on the boards.", "You smell of the harbor. Be careful." },
+			Idle = { "Marsh listens. Speak low.", "Lights in the reeds. Never follow them." },
+		},
+		Hesk = {
+			Name = "Hesk Thornwell",
+			Role = "Forester",
+			Greetings = { "Quiet. Something's moving.", "Not many come this far." },
+			Idle = { "Wood remembers.", "Rust in the bark. Rust in the blood." },
+		},
+		Fen = {
+			Name = "Fen",
+			Role = "Canal urchin",
+			Greetings = { "Hey! Wanna see something neat?", "Psst. Climber. Over here." },
+			Idle = { "Fish glow, y'know.", "Bridge is mine. Mostly." },
+		},
+	} :: { [string]: { Name: string, Role: string, Greetings: { string }, Idle: { string } } },
+
+	Achievements = {
+		List = {
+			FirstBlood = { Name = "First Blood", Description = "Defeat your first enemy." },
+			CrabCracker = { Name = "Crab Cracker", Description = "Defeat 25 Bilgecrabs." },
+			SailorsRest = { Name = "Sailor's Rest", Description = "Put 25 Drowned Sailors to rest." },
+			WispSnuffer = { Name = "Wisp Snuffer", Description = "Snuff out 25 Marsh Wisps." },
+			ParryMaster = { Name = "Parry Master", Description = "Land 100 parries." },
+			Untouchable = { Name = "Untouchable", Description = "Perfectly dodge 25 attacks." },
+			Confluent = { Name = "Confluent", Description = "Unleash your first Confluence." },
+			WaystoneWanderer = { Name = "Waystone Wanderer", Description = "Discover 6 Waystones or secrets." },
+			CisternDelver = { Name = "Cistern Delver", Description = "Clear the Sunken Cistern." },
+			CisternRegular = { Name = "Cistern Regular", Description = "Clear the Sunken Cistern 10 times." },
+			Floor1Pioneer = { Name = "Floor 1 Pioneer", Description = "Defeat the Brinewarden." },
+			WardenBreaker = { Name = "Warden Breaker", Description = "Defeat the Brinewarden 5 times." },
+			Level5 = { Name = "Settling In", Description = "Reach level 5." },
+			Level10 = { Name = "Climbing Steady", Description = "Reach level 10." },
+			Level12 = { Name = "Ready for the Gate", Description = "Reach level 12." },
+			TheFirstGateOpens = { Name = "The First Gate Opens", Description = "Complete the Floor 1 story." },
+			Questing = { Name = "Questing", Description = "Complete 20 quests." },
+			Crafter = { Name = "Crafter", Description = "Craft 10 items." },
+			Tidepurse = { Name = "Tidepurse", Description = "Earn 5,000 gold." },
+			TideTaken = { Name = "Tide-Taken", Description = "Fall 10 times and rise again." },
+			SmugglersFriend = { Name = "Smuggler's Friend", Description = "Find the hidden Smugglers' Cove." },
+			HollowKeeper = { Name = "Hollow Keeper", Description = "Find the Hollow Under Rustwood." },
+		} :: { [string]: { Name: string, Description: string } },
+		Titles = {
+			ParryMaster = "Parry Master",
+			Untouchable = "Untouchable",
+			Confluent = "Confluent",
+			CisternRegular = "Cistern Regular",
+			Floor1Pioneer = "Floor 1 Pioneer",
+			WardenBreaker = "Warden Breaker",
+		} :: { [string]: string },
+	},
 
 	-- Phase 8: progression, Positions, the skill tree and abilities.
 	Progression = {

@@ -80,6 +80,7 @@ local CharacterService = require(script.Parent.CharacterService)
 local AnalyticsService = require(script.Parent.AnalyticsService)
 local PressureService = require(script.Parent.PressureService)
 local WeaponService = require(script.Parent.WeaponService)
+local GameEvents = require(script.Parent.GameEvents)
 
 local A = Attributes.Names
 local C = Config.Current
@@ -112,6 +113,7 @@ local wards: { [Player]: Ward } = {}
 local offers: { [Player]: { Slot: string, Shrine: BasePart } } = {}
 type Charge = { SpellId: string, Started: number, Token: number }
 local charges: { [Player]: Charge } = {}
+local previews: { [Player]: string } = {} -- one spell a player may cast before any Attunement (tutorial)
 
 local wallParams = RaycastParams.new()
 wallParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -178,6 +180,9 @@ local function knownSpell(player: Player, spellId: string): Spells.SpellDef?
 	local data = DataService.GetData(player)
 	if not spell or not data then
 		return nil
+	end
+	if previews[player] == spellId then
+		return spell
 	end
 	local attunements = data.Attunements
 	if spell.Attunement ~= attunements.Primary and spell.Attunement ~= attunements.Secondary then
@@ -605,6 +610,7 @@ local function release(player: Player, spell: Spells.SpellDef, aim: Vector3, cha
 	CurrentService.OnCast(player, cost)
 	VitalsService.MarkCombat(player)
 	SpellService.SpellCast:Fire(player, spell.Id)
+	GameEvents.Fire(player, "Cast", spell.Id)
 	return true
 end
 
@@ -777,6 +783,7 @@ local function onAttune(player: Player, attunement: string)
 	local name = Strings.Attunements[attunement]
 	Net.Fire("Notify", player, "Toasts.Attuned", { name = if name then name.Name else attunement }, "Success")
 	AnalyticsService.Custom(player, `Attuned{pending.Slot}`)
+	GameEvents.Fire(player, "Attune", attunement)
 	learnForms(player)
 	fillHotbar(player)
 end
@@ -808,6 +815,18 @@ local function addShrine(instance: Instance)
 	prompt.Triggered:Connect(function(player: Player)
 		offer(player, shrine)
 	end)
+end
+
+-- PREVIEW ------------------------------------------------------------------------
+
+-- Lets `player` cast one spell they don't know yet (the tutorial's Tide Bolt, before any
+-- Attunement); nil (or an unknown id) clears it. Everything else about casting is unchanged.
+function SpellService.SetPreviewSpell(player: Player, spellId: string?)
+	if spellId and Spells.Get(spellId) then
+		previews[player] = spellId
+	else
+		previews[player] = nil
+	end
 end
 
 -- HOTBAR -------------------------------------------------------------------------
@@ -900,6 +919,7 @@ function SpellService.Start()
 		wards[player] = nil
 		offers[player] = nil
 		charges[player] = nil
+		previews[player] = nil
 	end)
 
 	for _, shrine in CollectionService:GetTagged(Attributes.Tags.AttunementShrine) do

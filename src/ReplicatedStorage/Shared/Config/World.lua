@@ -35,6 +35,9 @@ return TableUtil.DeepFreeze({
 		CrystalBobSpeed = 1.6, -- radians per second
 		CrystalSpinDegreesPerSecond = 25,
 		CrystalAnimateRange = 150, -- only animate crystals this close to the camera
+		TravelRadius = 16, -- fast travel (map): you must stand this close to a discovered Waystone
+		TravelCooldown = 20, -- seconds between fast travels
+		TravelCombatLock = 6, -- no fast travel within this many seconds of combat
 	},
 
 	LostCurrent = {

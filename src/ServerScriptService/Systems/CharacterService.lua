@@ -35,6 +35,7 @@ local AntiExploitService = require(script.Parent.AntiExploitService)
 local AnalyticsService = require(script.Parent.AnalyticsService)
 local TargetService = require(script.Parent.TargetService)
 local WeaponService = require(script.Parent.WeaponService)
+local GameEvents = require(script.Parent.GameEvents)
 
 local A = Attributes.Names
 local log = Log.new("CharacterService")
@@ -167,6 +168,7 @@ local function onDied(player: Player, character: Model)
 		CharacterService.Ragdoll(character)
 	end
 	DataService.Increment(player, { "PlayStats", "Deaths" }, 1)
+	GameEvents.Fire(player, "Death")
 	if root then
 		dropLostCurrent(player, root.Position)
 	end

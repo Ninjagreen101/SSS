@@ -29,6 +29,7 @@ local DataService = require(script.Parent.DataService)
 local Rewards = require(script.Parent.Rewards)
 local ProgressionService = require(script.Parent.ProgressionService)
 local AnalyticsService = require(script.Parent.AnalyticsService)
+local GameEvents = require(script.Parent.GameEvents)
 
 local log = Log.new("SecretService")
 
@@ -138,6 +139,7 @@ local function scan()
 				ProgressionService.AwardDiscovery(player, "Secret")
 				Net.Fire("Notify", player, "Toasts.SecretFound", { name = secretName(id) }, "Success")
 				AnalyticsService.Custom(player, "SecretFound")
+				GameEvents.Fire(player, "Discover", `Secret:{id}`)
 			end
 		end
 	end

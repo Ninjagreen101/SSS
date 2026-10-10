@@ -63,6 +63,7 @@ local VitalsService = require(script.Parent.VitalsService)
 local TargetService = require(script.Parent.TargetService)
 local WeaponService = require(script.Parent.WeaponService)
 local AntiExploitService = require(script.Parent.AntiExploitService)
+local GameEvents = require(script.Parent.GameEvents)
 
 local C = Config.Combat
 local A = Attributes.Names
@@ -119,6 +120,7 @@ type Fighter = {
 	Action: Action,
 	ActionEnd: number,
 	Combo: number,
+	ComboHits: number, -- light blows of the current combo that landed (a full combo fires GameEvents Combo)
 	LastLightEnd: number,
 	Pending: thread?,
 	Blocking: boolean,
@@ -432,6 +434,9 @@ local function resolveHit(attacker: Fighter?, defender: Fighter, hit: HitSpec, s
 		end
 		local outcome: Outcome = if perfect then "PerfectDodge" else "Dodge"
 		feedback(defender, attacker, outcome, 0, false)
+		if player then
+			GameEvents.Fire(player, if perfect then "PerfectDodge" else "Dodge")
+		end
 		return outcome
 	end
 
@@ -445,6 +450,7 @@ local function resolveHit(attacker: Fighter?, defender: Fighter, hit: HitSpec, s
 		if player then
 			VitalsService.AddCurrent(player, VitalsService.GetMaxCurrent(player) * C.Parry.CurrentRefillFraction)
 			DataService.Increment(player, { "PlayStats", "Parries" }, 1)
+			GameEvents.Fire(player, "Parry")
 		end
 		if attacker and isAlive(attacker) then
 			if not addPosture(attacker, C.Posture.ParriedPostureDamage) and not attacker.Unflinching then
@@ -578,11 +584,15 @@ local function swing(attacker: Fighter, spec: SwingSpec): number
 	return hits
 end
 
-local function schedule(attacker: Fighter, windup: number, spec: SwingSpec)
+-- `landed` (optional) hears how many targets the blow hit.
+local function schedule(attacker: Fighter, windup: number, spec: SwingSpec, landed: ((number) -> ())?)
 	cancelPending(attacker)
 	attacker.Pending = task.delay(windup, function()
 		attacker.Pending = nil
-		swing(attacker, spec)
+		local hits = swing(attacker, spec)
+		if landed then
+			landed(hits)
+		end
 	end)
 end
 
@@ -652,6 +662,10 @@ local function onAttack(player: Player, _comboIndex: number, aim: Vector3)
 	startAction(f, "Attacking", windup + recovery)
 	f.Combo = combo
 	f.LastLightEnd = t + windup + recovery
+	if combo == 1 then
+		f.ComboHits = 0
+	end
+	local length = l.Class.ComboLength
 
 	local spec: SwingSpec = {
 		Reach = l.Class.Reach + (if thrust then l.Class.ThrustReachBonus or 0 else 0) + C.HitValidation.ReachTolerance,
@@ -668,7 +682,17 @@ local function onAttack(player: Player, _comboIndex: number, aim: Vector3)
 			CritMultiplier = critMultiplier,
 		},
 	}
-	schedule(f, windup, spec)
+	-- A full light combo: every step of it landed on something.
+	schedule(f, windup, spec, function(hits: number)
+		if hits <= 0 then
+			return
+		end
+		f.ComboHits += 1
+		if combo == length and f.ComboHits >= length then
+			f.ComboHits = 0
+			GameEvents.Fire(player, "Combo", "", length)
+		end
+	end)
 	swingVisual(f, kind, spec, windup)
 end
 
@@ -1023,6 +1047,7 @@ local function addFighter(target: TargetService.Target)
 		Action = "Idle",
 		ActionEnd = 0,
 		Combo = 0,
+		ComboHits = 0,
 		LastLightEnd = 0,
 		Pending = nil,
 		Blocking = false,

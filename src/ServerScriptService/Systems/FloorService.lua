@@ -14,8 +14,10 @@
 	- Respawn position: last rested Waystone -> default Waystone -> any
 	  SpawnLocation -> world origin.
 
-	Fast travel between Waystones arrives with the map (Phase 11) and uses
-	the same discovered list.
+	- Fast travel (Phase 11, from the map): standing within TravelRadius of a
+	  discovered Waystone, RequestWaystoneTravel(targetId) moves you to another
+	  discovered one on this floor. Refused in combat (TravelCombatLock),
+	  during the tutorial, and within TravelCooldown of the last trip.
 ]]
 
 local CollectionService = game:GetService("CollectionService")
@@ -35,6 +37,7 @@ local DataService = require(script.Parent.DataService)
 local VitalsService = require(script.Parent.VitalsService)
 local AnalyticsService = require(script.Parent.AnalyticsService)
 local ProgressionService = require(script.Parent.ProgressionService)
+local GameEvents = require(script.Parent.GameEvents)
 
 local A = Attributes.Names
 local log = Log.new("FloorService")
@@ -50,6 +53,7 @@ local FloorService = {}
 
 local waystones: { [string]: Waystone } = {}
 local floorId = "1"
+local lastTravel: { [Player]: number } = {}
 
 local function displayName(id: string): string
 	return Strings.Waystones[id] or id
@@ -78,6 +82,7 @@ local function rest(player: Player, waystone: Waystone)
 	if not data.Waystones.Discovered[waystone.Id] then
 		DataService.Set(player, { "Waystones", "Discovered", waystone.Id }, true)
 		ProgressionService.AwardDiscovery(player, "Waystone")
+		GameEvents.Fire(player, "Discover", `Waystone:{waystone.Id}`)
 	end
 	DataService.Set(player, { "Waystones", "Last" }, waystone.Id)
 	VitalsService.RestoreAll(player)
@@ -153,6 +158,7 @@ local function scanDiscoveries()
 					Net.Fire("Notify", player, "Toasts.WaystoneDiscovered", { name = displayName(id) }, "Info")
 					AnalyticsService.Custom(player, "WaystoneDiscovered")
 					ProgressionService.AwardDiscovery(player, "Waystone")
+					GameEvents.Fire(player, "Discover", `Waystone:{id}`)
 				end
 			end
 		end
@@ -199,6 +205,60 @@ function FloorService.GetWaystoneIds(): { string }
 	return ids
 end
 
+-- Fast travel from the map. Everything is re-checked here; the client only names the target.
+local function travel(player: Player, targetId: string)
+	local W = Config.World.Waystones
+	local function refuse(reason: string)
+		Net.Fire("Notify", player, `QuestUI.TravelErrors.{reason}`, {}, "Warning")
+	end
+	local data = DataService.GetData(player)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not data or not root or not root:IsA("BasePart") or not humanoid or humanoid.Health <= 0 then
+		refuse("Busy")
+		return
+	end
+	local target = waystones[targetId]
+	if not target or not data.Waystones.Discovered[targetId] then
+		refuse("Unknown")
+		return
+	end
+	-- Must be standing at a Waystone you know (not the target itself).
+	local here: Waystone? = nil
+	for id, waystone in waystones do
+		if id ~= targetId and data.Waystones.Discovered[id] and (waystonePosition(waystone) - root.Position).Magnitude <= W.TravelRadius then
+			here = waystone
+			break
+		end
+	end
+	if not here then
+		refuse("NotAtWaystone")
+		return
+	end
+	local now = Workspace:GetServerTimeNow()
+	local lastCombat = player:GetAttribute(A.LastCombat)
+	if type(lastCombat) == "number" and now - lastCombat < W.TravelCombatLock then
+		refuse("Combat")
+		return
+	end
+	if now - (lastTravel[player] or -math.huge) < W.TravelCooldown then
+		refuse("Cooldown")
+		return
+	end
+	-- The tutorial keeps a new Climber on the docks until it ends (required lazily: no load cycle).
+	local tutorial = require(script.Parent.TutorialService) :: any
+	if tutorial.IsActive(player) then
+		refuse("Busy")
+		return
+	end
+	lastTravel[player] = now
+	local characterService = require(script.Parent.CharacterService) :: any
+	characterService.Teleport(player, spawnCFrame(target))
+	Net.Fire("Notify", player, "QuestUI.TravelArrived", { name = displayName(targetId) }, "Success")
+	AnalyticsService.Custom(player, "WaystoneTravel")
+end
+
 function FloorService.Init()
 	local configured = Workspace:GetAttribute("FloorId")
 	if type(configured) == "string" and configured ~= "" then
@@ -211,6 +271,12 @@ function FloorService.Start()
 		register(model)
 	end
 	CollectionService:GetInstanceAddedSignal(Attributes.Tags.Waystone):Connect(register)
+	Net.On("RequestWaystoneTravel", function(player: Player, targetId: string)
+		travel(player, targetId)
+	end)
+	Players.PlayerRemoving:Connect(function(player: Player)
+		lastTravel[player] = nil
+	end)
 
 	local accumulator = 0
 	RunService.Heartbeat:Connect(function(dt: number)

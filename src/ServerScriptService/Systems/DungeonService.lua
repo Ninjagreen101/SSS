@@ -40,6 +40,7 @@ local ProgressionService = require(script.Parent.ProgressionService)
 local AnalyticsService = require(script.Parent.AnalyticsService)
 local Rewards = require(script.Parent.Rewards)
 local AntiExploitService = require(script.Parent.AntiExploitService)
+local GameEvents = require(script.Parent.GameEvents)
 
 local D = Config.Dungeons
 local log = Log.new("DungeonService")
@@ -401,6 +402,7 @@ local function scan()
 			run.Cleared = true
 			for player in run.Members do
 				Net.Fire("Notify", player, "Toasts.ChestUnsealed", {}, "Success")
+				GameEvents.Fire(player, "Clear", `Dungeon:{run.DungeonId}`)
 			end
 		end
 		local anyone = false

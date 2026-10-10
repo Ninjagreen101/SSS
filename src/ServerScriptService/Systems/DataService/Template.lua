@@ -97,6 +97,9 @@ local template: Types.PlayerData = {
 		Tracked = "",
 		DailyResetAt = 0,
 		WeeklyResetAt = 0,
+		Dailies = {}, -- today's rolled daily quest ids (one per pool)
+		Weeklies = {}, -- this week's rolled weekly quest ids
+		Rerolls = 0, -- daily rerolls used today (back to 0 at the daily reset)
 	},
 	Floors = {
 		Unlocked = { ["1"] = true },
@@ -111,7 +114,12 @@ local template: Types.PlayerData = {
 	Discoveries = {},
 	RecipesKnown = {},
 	Achievements = {},
-	Title = "",
+	AchievementProgress = {}, -- achievement id -> events counted so far (until unlocked)
+	Title = "", -- achievement id whose title is shown ("" = none)
+	Map = {
+		Explored = {}, -- floor id -> fog-of-war bitset as hex (MapService)
+		Pins = {}, -- floor id -> { { X, Z, Icon } }
+	},
 
 	Cosmetics = {
 		Owned = {},
@@ -134,7 +142,11 @@ local template: Types.PlayerData = {
 		CloakColor = 1,
 	},
 	Settings = TableUtil.DeepCopy(SettingsSchema.Defaults),
-	Tutorial = {},
+	Tutorial = {
+		Step = 0,
+		Done = false, -- profiles from before v6 migrate to true (veterans never see the docks again)
+		Skipped = false,
+	},
 	PlayStats = {
 		FirstJoin = 0,
 		LastJoin = 0,

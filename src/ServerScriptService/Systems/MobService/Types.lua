@@ -37,6 +37,8 @@ export type SpawnOptions = {
 	Facing: Vector3?, -- initial look direction (default: random)
 	AllowedTargets: { [Player]: boolean }?, -- only these players are noticed, chased or taunt it (live set)
 	OnDied: ((Mob) -> ())?, -- runs once when it dies (after rewards for normal mobs)
+	DamageMultiplier: number?, -- scales every blow it deals (on top of the elite multiplier)
+	TelegraphScale: number?, -- scales its moves' telegraphs (still at least Mobs.AI.MinTelegraph)
 }
 
 export type NavState = {
@@ -91,6 +93,7 @@ export type Mob = {
 	AllowedTargets: { [Player]: boolean }?, -- nil: anyone; else only these players
 	WeakPoint: WeakPointSpec?, -- overrides Def.WeakPoint
 	PostureTaken: number, -- multiplies posture damage it takes (a Guardian's ebb tide)
+	TelegraphScale: number, -- multiplies every move's telegraph (Spawn option; tutorial tutors are slower)
 	OnDied: ((Mob) -> ())?,
 }
 

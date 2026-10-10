@@ -7,7 +7,7 @@
 	- Windows wear the deep-ocean frame: layered navy glass, fine double
 	  border, wave-curl corners and a wave crest under the bottom edge.
 	- Navigation groups ("Journal": Character, Inventory, Spellbook, Skill
-	  Tree, and Quests greyed out until quests exist) share ONE window with a
+	  Tree and the Quest Log) share ONE window with a
 	  row of tabs across the top. Switching tabs swaps pages inside the open
 	  window (a short slide) instead of closing and reopening it.
 	- "Immersive" menus (the Skill Tree) fill the screen with their own
@@ -1101,7 +1101,7 @@ function UIController.Init()
 			{ Menu = "Inventory", Text = Strings.Actions.OpenInventory, Icon = "Inventory", Action = "OpenInventory" },
 			{ Menu = "Spellbook", Text = Strings.Actions.OpenSpellbook, Icon = "Current", Action = "OpenSpellbook" },
 			{ Menu = "SkillTree", Text = Strings.Actions.OpenSkillTree, Icon = "SkillTree", Action = "OpenSkillTree" },
-			{ Text = Strings.Actions.OpenQuestLog, Icon = "Quests", Disabled = true, Tooltip = Strings.UI.QuestsLater },
+			{ Menu = "QuestLog", Text = Strings.Actions.OpenQuestLog, Icon = "Quests", Action = "OpenQuestLog" },
 		},
 	})
 	Net.OnClient("Notify", onNotify)

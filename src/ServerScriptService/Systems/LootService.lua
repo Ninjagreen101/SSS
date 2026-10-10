@@ -34,6 +34,7 @@ local DataService = require(script.Parent.DataService)
 local InventoryService = require(script.Parent.InventoryService)
 local AnalyticsService = require(script.Parent.AnalyticsService)
 local GearService = require(script.Parent.GearService)
+local GameEvents = require(script.Parent.GameEvents)
 
 type PlayerData = Types.PlayerData
 
@@ -328,6 +329,9 @@ local function onPickup(player: Player, id: string)
 		if ok then
 			local data = DataService.GetData(player)
 			AnalyticsService.Economy(player, "Source", "Gold", landed, if data then data.Currencies.Gold else 0, "Gameplay", "Loot")
+			if landed > 0 then
+				GameEvents.Fire(player, "Gold", "", landed)
+			end
 		end
 	else
 		ok, reason = InventoryService.AddItem(player, drop.Item :: Types.ItemInstance, drop.Count)

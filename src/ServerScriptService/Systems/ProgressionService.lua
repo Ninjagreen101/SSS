@@ -35,6 +35,7 @@ local Rules = require(Shared.Data.ProgressionRules)
 local DataService = require(script.Parent.DataService)
 local VitalsService = require(script.Parent.VitalsService)
 local AnalyticsService = require(script.Parent.AnalyticsService)
+local GameEvents = require(script.Parent.GameEvents)
 
 local P = Config.Progression
 
@@ -91,6 +92,7 @@ local function applyLevel(player: Player, before: number, level: number)
 	end
 	DataService.Set(player, { "Level" }, level)
 	celebrate(player, level, statPoints, skillPoints, before)
+	GameEvents.Fire(player, "LevelUp", "", level)
 end
 
 -- Adds XP and applies any level ups. Returns the new level.

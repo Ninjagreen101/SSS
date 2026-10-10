@@ -53,6 +53,7 @@ local DataController = require(script.Parent.DataController)
 local UIController = require(script.Parent.UIController)
 local ProgressionController = require(script.Parent.ProgressionController)
 local InventoryController = require(script.Parent.InventoryController)
+local AchievementController = require(script.Parent.AchievementController)
 
 type ItemInstance = Types.ItemInstance
 type PlayerData = Types.PlayerData
@@ -569,6 +570,9 @@ local function build(content: Frame, maid: Maid.Maid): any
 	local xpLabel = Create.Label({ Text = "", TextSize = UITheme.TextSize.Caption, Color = C.TextMuted, Position = UDim2.fromOffset(28, 0), Size = UDim2.new(1, -28, 0, 20), Parent = xpRow })
 	local xpBar = Components.ProgressBar.new({ Color = C.Aqua, Size = UDim2.new(1, -28, 0, 6), Position = UDim2.fromOffset(28, 24), Parent = xpRow })
 	maid:Add(xpBar)
+	-- Title shown under the name (unlocked by achievements).
+	local titlePicker = AchievementController.CreateTitlePicker({ Size = UDim2.new(1, 0, 0, 44), Parent = detailsCard }, maid)
+	titlePicker.LayoutOrder = 6
 
 	local buildCard = card(right, SH.BuildStats, "Damage", 2)
 	local healthValue = statRow(buildCard, "Health", S.Sheet.Health, 1, C.Health:Lerp(Color3.new(1, 1, 1), 0.25))

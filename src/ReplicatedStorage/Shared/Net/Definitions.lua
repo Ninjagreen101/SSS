@@ -83,6 +83,7 @@ local Definitions: { [string]: RemoteDef } = {
 	RequestSetTitle = toServer({ S.String(0, 48) }), -- achievement id whose title to show ("" = none)
 	RequestMapPin = toServer({ S.OneOf({ "Add", "Remove" }), S.Number(-5000, 5000), S.Number(-5000, 5000), S.String(0, 16) }), -- action, x, z, icon
 	RequestTutorial = toServer({ S.OneOf({ "Skip", "Continue" }) }),
+	RequestWaystoneTravel = toServer({ S.Id(48) }), -- target waystone id: travel from the waystone you stand at (map)
 
 	-- Server -> client (results)
 	DataSnapshot = toClient(), -- full replica of the player's own saved data

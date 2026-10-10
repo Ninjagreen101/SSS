@@ -31,6 +31,7 @@ local ORDER = {
 	"CanalFishController",
 	"CharacterController",
 	"HUDController",
+	"TutorialController", -- docks onboarding prompts (Phase 11)
 	"DeathController",
 	"InteractionController",
 	"VFXController",
@@ -59,6 +60,12 @@ local ORDER = {
 	"ProgressionController",
 	"SkillTreeController",
 	"DevGalleryController",
+	-- Quests, achievements, NPC talk, nameplates and the map (Phase 11).
+	"QuestController",
+	"AchievementController",
+	"DialogueController",
+	"NameplateController",
+	"MapController",
 	"DataController",
 }
 

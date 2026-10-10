@@ -64,6 +64,8 @@ local LootService = require(script.Parent.LootService)
 local DungeonService = require(script.Parent.DungeonService)
 local AntiExploitService = require(script.Parent.AntiExploitService)
 local AnalyticsService = require(script.Parent.AnalyticsService)
+local EconomyService = require(script.Parent.EconomyService)
+local GameEvents = require(script.Parent.GameEvents)
 
 local Types = require(script.Types)
 local Rules = require(script.Rules)
@@ -386,16 +388,6 @@ end
 
 -- PAYOUT ---------------------------------------------------------------------------------------
 
-local function grantShards(player: Player, amount: number)
-	if amount <= 0 then
-		return
-	end
-	local balance = DataService.Increment(player, { "Currencies", "Shards" }, amount, 0, Config.Economy.MaxShards)
-	if balance then
-		AnalyticsService.Economy(player, "Source", "Shards", amount, balance, "Gameplay", "Guardian")
-	end
-end
-
 -- XP and the kill count for everyone with a share; the first clear adds the next floor, Shards
 -- and skill points. Returns true for a first clear.
 local function payOut(fight: Fight, player: Player): boolean
@@ -410,7 +402,7 @@ local function payOut(fight: Fight, player: Player): boolean
 		-- Marked cleared before anything is granted, so the first-clear rewards can't repeat.
 		DataService.Set(player, { "Floors", "GuardiansCleared", def.Floor }, os.time())
 		DataService.Set(player, { "Floors", "Unlocked", def.NextFloor }, true)
-		grantShards(player, def.Rewards.Shards)
+		EconomyService.GrantShards(player, def.Rewards.Shards, "Guardian")
 		ProgressionService.AwardSkillPoints(player, Config.Progression.GuardianBonusSkillPoints)
 		DataService.SaveNow(player)
 	end
@@ -556,6 +548,7 @@ local function victory(fight: Fight)
 				local ok, result = pcall(payOut, fight, player)
 				if ok then
 					firstClears[player] = result == true
+					GameEvents.Fire(player, "Clear", `Guardian:{fight.GuardianId}`)
 				else
 					log:Error(`payout for {player.Name} failed: {tostring(result)}`)
 				end

@@ -69,6 +69,11 @@ module headers. All player text lives in Strings: `Strings.Quests`, `Strings.Npc
   `assets/map/floor1_map.png`.
 - `Config.World.Maps["1"].Image` takes its uploaded asset id. With an empty id, the client draws the
   map from `ReplicatedStorage.FloorData.Regions` as merged colour runs.
+- To refresh it: `lune run tools/place/render_map.luau` (about 75 s; needs Python 3 with Pillow and numpy) rewrites
+  the 1024×1024 PNG, which covers the whole floor (Center (0, 0), Size 3000, north = -Z at the top, so image
+  x = world X and image y = world Z) with no text labels. Upload it in Studio (Asset Manager > Bulk Import, as an
+  Image) and paste the resulting `rbxassetid://` id into `Config.World.Maps["1"].Image`. The UI draws labels,
+  Waystones, markers and fog on top.
 
 ## 3. Contracts
 

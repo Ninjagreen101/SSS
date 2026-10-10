@@ -213,6 +213,22 @@ local function onStation(player: Player, stationId: string, action: string, id: 
 	InventoryService.Result(player, ok, reason, payload)
 end
 
+-- SHARDS -------------------------------------------------------------------------------
+
+-- Spire Shards from play (Guardian first clears, quests, achievements), clamped to MaxShards.
+-- `reason` tags the analytics source. Returns the new balance, or nil if nothing was granted.
+function EconomyService.GrantShards(player: Player, amount: number, reason: string): number?
+	local whole = math.floor(amount)
+	if whole <= 0 or whole ~= whole then
+		return nil
+	end
+	local balance = DataService.Increment(player, { "Currencies", "Shards" }, whole, 0, Config.Economy.MaxShards)
+	if balance then
+		AnalyticsService.Economy(player, "Source", "Shards", whole, balance, "Gameplay", reason)
+	end
+	return balance
+end
+
 -- STATIONS -----------------------------------------------------------------------------
 
 local function track(station: Instance)

@@ -461,9 +461,20 @@ local function canCast(spell: Spells.SpellDef): boolean
 	return true
 end
 
+local previewSpell: string? = nil -- cast from an empty first slot (the tutorial's Tide Bolt)
+
 local function spellAt(index: number): Spells.SpellDef?
-	local id = hotbar()[index]
-	return if type(id) == "string" and id ~= "" then Spells.Get(id) else nil
+	local id: string? = hotbar()[index]
+	if index == 1 and (id == nil or id == "") then
+		id = previewSpell
+	end
+	return if id and id ~= "" then Spells.Get(id) else nil
+end
+
+-- Lets an empty first slot cast `spellId` (the server allows it through
+-- SpellService.SetPreviewSpell); nil clears it.
+function SpellController.SetPreviewSpell(spellId: string?)
+	previewSpell = spellId
 end
 
 -- Sends the cast (after any aiming/charging) and predicts it locally.

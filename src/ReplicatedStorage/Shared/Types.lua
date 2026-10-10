@@ -99,10 +99,20 @@ export type Settings = {
 	TouchLayout: { [string]: TouchButtonLayout }, -- only buttons the player moved
 }
 
+-- One active quest (QuestService). Progress is keyed by objective index as a string ("1", "2", ...).
+-- Stage is the first unfinished objective (for Sequential quests the only one that counts);
+-- #Objectives + 1 means every objective is done and the quest is ready to hand in.
 export type QuestState = {
 	Stage: number,
 	Progress: { [string]: number },
 	StartedAt: number,
+}
+
+-- A custom map pin (MapService).
+export type MapPin = {
+	X: number,
+	Z: number,
+	Icon: string,
 }
 
 export type PlayerData = {
@@ -163,8 +173,11 @@ export type PlayerData = {
 		Active: { [string]: QuestState },
 		Completed: { [string]: number }, -- quest id -> completion unix time
 		Tracked: string,
-		DailyResetAt: number,
-		WeeklyResetAt: number,
+		DailyResetAt: number, -- unix time the current dailies expire (next 00:00 UTC)
+		WeeklyResetAt: number, -- unix time the current weeklies expire
+		Dailies: { string }, -- today's rolled daily quest ids
+		Weeklies: { string }, -- this week's rolled weekly quest ids
+		Rerolls: number, -- daily rerolls used today (limit Config.Quests.DailyRerolls)
 	},
 	Floors: {
 		Unlocked: { [string]: boolean }, -- "1", "2" ...
@@ -178,8 +191,16 @@ export type PlayerData = {
 	},
 	Discoveries: { [string]: boolean },
 	RecipesKnown: { [string]: boolean },
-	Achievements: { [string]: number },
-	Title: string,
+	Achievements: { [string]: number }, -- achievement id -> unlock unix time
+	AchievementProgress: { [string]: number }, -- achievement id -> count toward it (until unlocked)
+	Title: string, -- achievement id whose title is shown ("" = none)
+	Map: {
+		-- floor id -> fog of war (MapService): one hex digit per 4 cells of the Config.Quests.Map grid;
+		-- cell i = row * Cells + col (row 0 = the map square's min-Z edge, col 0 = its min-X edge) is
+		-- bit 2^(i % 4) of digit floor(i / 4) + 1. "" = nothing explored.
+		Explored: { [string]: string },
+		Pins: { [string]: { MapPin } }, -- floor id -> custom pins
+	},
 
 	-- Cosmetics & monetization
 	Cosmetics: {
@@ -204,7 +225,11 @@ export type PlayerData = {
 		CloakColor: number,
 	},
 	Settings: Settings,
-	Tutorial: { [string]: boolean },
+	Tutorial: {
+		Step: number, -- current onboarding step (0 = not started)
+		Done: boolean,
+		Skipped: boolean,
+	},
 	PlayStats: {
 		FirstJoin: number,
 		LastJoin: number,

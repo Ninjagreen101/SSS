@@ -29,6 +29,7 @@ local Rules = require(Shared.Data.InventoryRules)
 local DataService = require(script.Parent.DataService)
 local InventoryService = require(script.Parent.InventoryService)
 local EconomyService = require(script.Parent.EconomyService)
+local GameEvents = require(script.Parent.GameEvents)
 
 type PlayerData = Types.PlayerData
 
@@ -111,6 +112,9 @@ local function finish(player: Player, job: Job)
 		return crafted, why
 	end)
 	local item = made :: Types.ItemInstance?
+	if ok then
+		GameEvents.Fire(player, "Craft", job.Recipe.Output, job.Recipe.Count)
+	end
 	InventoryService.Result(player, ok, reason, {
 		Action = "Craft",
 		Recipe = job.Recipe.Id,

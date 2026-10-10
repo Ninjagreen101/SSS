@@ -55,6 +55,7 @@ local LootService = require(script.Parent.LootService)
 local GearService = require(script.Parent.GearService)
 local EnvironmentService = require(script.Parent.EnvironmentService)
 local VitalsService = require(script.Parent.VitalsService)
+local GameEvents = require(script.Parent.GameEvents)
 local Types = require(script.Types)
 local Builder = require(script.Builder)
 local Navigator = require(script.Navigator)
@@ -148,6 +149,9 @@ local function onDied(mob: Types.Mob)
 	local position = mob.Root.Position
 	local earned = ProgressionService.KillEligible(mob.Contributors, position)
 	ProgressionService.AwardKill(mob.Def, mob.Elite, earned)
+	for _, player in earned do
+		GameEvents.Fire(player, "Kill", mob.MobId)
+	end
 	local zone = if mob.Spawn then mob.Spawn.Part:GetAttribute(A.Zone) else nil
 	LootService.AwardKill(mob.MobId, mob.Def, mob.Elite, earned, position, if type(zone) == "string" then zone else nil)
 	notifyDied(mob)
@@ -235,7 +239,7 @@ function MobService.Spawn(
 		Spawn = point,
 		Home = ground,
 		PatrolRadius = if point then point.PatrolRadius else SPAWN.DefaultPatrolRadius,
-		DamageMultiplier = if elite then ELITE.DamageMultiplier else 1,
+		DamageMultiplier = (if elite then ELITE.DamageMultiplier else 1) * math.max(0, opts.DamageMultiplier or 1),
 		EmpowerUntil = 0,
 		EmpowerBonus = 0,
 		State = "Idle",
@@ -263,6 +267,7 @@ function MobService.Spawn(
 		AllowedTargets = opts.AllowedTargets,
 		WeakPoint = nil,
 		PostureTaken = 1,
+		TelegraphScale = math.max(0, opts.TelegraphScale or 1),
 		OnDied = opts.OnDied,
 	}
 	mobs[model] = mob

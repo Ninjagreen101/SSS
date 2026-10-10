@@ -47,6 +47,7 @@ local CombatService = require(Systems.CombatService)
 local CurrentService = require(Systems.CurrentService)
 local WeaponService = require(Systems.WeaponService)
 local AnalyticsService = require(Systems.AnalyticsService)
+local GameEvents = require(Systems.GameEvents)
 local Runner = require(script.Runner)
 
 local A = Attributes.Names
@@ -183,6 +184,7 @@ local function onWeaponArt(player: Player, aimInput: Vector3)
 			entry.Confluence = t + CF.Cooldown
 			player:SetAttribute(A.ConfluenceReadyAt, entry.Confluence)
 			AnalyticsService.Custom(player, "Confluence")
+			GameEvents.Fire(player, "Confluence", confluence.Id)
 		end
 		return
 	end

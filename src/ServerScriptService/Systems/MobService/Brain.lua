@@ -379,7 +379,7 @@ end
 local function runMove(mob: Types.Mob, moveId: string, move: Mobs.MoveDef, target: Player)
 	local blows = move.Blows
 	local interval = move.BlowInterval or 0
-	local telegraph = math.max(move.Telegraph, AI.MinTelegraph)
+	local telegraph = math.max(move.Telegraph * mob.TelegraphScale, AI.MinTelegraph)
 	local busyFor = telegraph + interval * (#blows - 1) + 0.25
 	if not CombatService.NpcBeginAttack(mob.Model, busyFor, move.HyperArmor == true) then
 		endMove(mob)
