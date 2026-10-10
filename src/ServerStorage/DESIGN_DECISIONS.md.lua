@@ -590,4 +590,42 @@ The design and its Roblox references are in docs/PHASE10_GUARDIAN.md.
      fallback body with the same piece names (Shell, Core, Seam, Claw, Helm), so the fight code works
      either way. The grab lock point "Claw" sits on the left pincer. The greatsword's edge stays
      vertical, because it reads better at 20 studs than the flat player blades.
+
+## Phase 11 - Quests and onboarding
+
+The design is in docs/PHASE11_QUESTS.md.
+
+169. **One action bus.** Systems report each player action once to GameEvents after the server has
+     decided it happened: kills, pickups, crafts, discoveries, attunement, clears, parries, dodges,
+     combos, casts, Resonance, Confluences, levels, regions, gold and deaths. Quests, achievements
+     and the tutorial only listen to the bus, so a new objective type is a new kind on the bus, not
+     a change to every system.
+170. **Quest state lives in the profile; events are only for show.** Active quests, progress,
+     dailies and weeklies replicate through the data replica. QuestEvent only drives toasts and
+     sounds, so a missed event can't desync the log.
+171. **Dailies roll per player and per day, deterministically.** The seed is the UserId plus the
+     day index, with one quest from each pool (Kill, Gather, Dungeon). There are 2 weeklies and 1
+     free reroll a day. Rolls happen at 00:00 UTC (Mondays for weeklies), so rejoining or
+     server-hopping never re-rolls.
+172. **NPCs check distance on the server.** Accept, hand-in and Talk all require the player within
+     14 studs of that NPC. The dialogue box is client-side, but every quest change it requests is
+     re-checked. Hand-in with a full bag is refused, and the quest stays ready.
+173. **The tutorial is taught by doing.** It has 8 steps on the docks at night (a local clock
+     override), driven by GameEvents:
+     - move, sprint, kill a crab (the first kill, about 1 minute in)
+     - dodge, then 2 parries against a slowed Drowned Sailor
+     - a preview Tide Bolt, the one-time Resonance card, then defeat the tutor
+     Tutorial mobs only fight their own player. The player can't drop below half health. It is
+     skippable after 5 s and resumes after a rejoin. Profiles that existed before v6 are marked
+     done, so veterans never see it.
+174. **Titles are achievement rewards.** Six achievements grant a title, for example "Floor 1
+     Pioneer" and "Parry Master". The player picks one on the Character sheet, and everyone sees it
+     under their name. The server only accepts a title the player has unlocked.
+175. **The map is an uploaded image, with an honest fallback.** tools/place/render_map.luau renders
+     a stylised top-down Floor 1 (assets/map/floor1_map.png). With no image id configured, the
+     client draws the floor from the region grid.
+     - Fog of war is a 48x48 server-tracked bitset.
+     - Pins are capped at 12.
+     - Fast travel works from the map while standing at a discovered Waystone: a 20 s cooldown, and
+       not within 6 s of combat or during the tutorial.
 ]==]
