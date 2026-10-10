@@ -628,4 +628,49 @@ The design is in docs/PHASE11_QUESTS.md.
      - Pins are capped at 12.
      - Fast travel works from the map while standing at a discovered Waystone: a 20 s cooldown, and
        not within 6 s of combat or during the tutorial.
+
+## Phase 12 - Multiplayer
+
+The design is in docs/PHASE12_MULTIPLAYER.md.
+
+176. **Parties are server-owned; any member can invite.**
+     - Parties hold up to 6. The leader can turn one into a raid of 8 for Guardians.
+     - A party that drops to one member disbands, and a leader who leaves hands over to the oldest
+       member.
+     - Kill XP is shared with members within 150 studs, with +10% for each other member there (spec).
+       Loot stays personal unless the leader picks SharedGold, which splits kill gold evenly.
+     - Party chat is a TextChatService channel per party, used with /p.
+     - Pings last 8 s, with at most 3 per player.
+177. **Private runs use reserved servers of the same place.** A dungeon or Guardian party teleports to
+     a ReserveServer of game.PlaceId. The teleport data says what to run and for whom. The instance
+     server only accepts players whose UserId is in Members and who came from this place, and sends
+     everyone else home. Afterwards players return to the run's exit waystone or the Gate. In
+     Studio, unpublished, or after a failed teleport, InstanceService.Begin returns false and the
+     old in-server copy runs. Decisions #133 and #149 described this transport change.
+178. **Trades are re-validated and swapped in one step.**
+     - Any change to either offer unlocks both sides and resets the 3 s countdown, and the other
+       side's change flashes.
+     - At final confirm every item (uid and all fields except stack bookkeeping), the gold and the
+       bag space on both sides are checked against the live profiles.
+     - Both profiles are trade-locked, swapped with no yield (full rollback on failure), then
+       unlocked and saved.
+     - Known gap: the two saves are separate DataStore keys, so a server crash between them could
+       duplicate one trade. A trade ledger (idempotent receipts in both profiles) closes it; it is
+       scheduled for the Phase 15 anti-exploit review.
+179. **Companies live in their own DataStore.**
+     - Records are written only through UpdateAsync. Every write carries an op id, so a retried
+       write that had already committed is never applied twice.
+     - Names are filtered and claimed through a unique name index.
+     - Storage moves are ordered so a failure can never mint an item: a deposit leaves the bag only
+       after the record commits; a withdrawal leaves the record first and is put back if the give
+       fails.
+     - MessagingService tells other servers to drop their cache.
+     - Weekly Company quests are fed by members' actions. Rewards can be claimed for this week and
+       last week, once per member.
+180. **Emotes and inspect.**
+     - Emotes use Roblox's default character animations from the place's Animate script, played on
+       your own character. The wheel is on T (B is the Position ability), or LT+Y on gamepad.
+     - Inspect sends another player's equipped gear, level, Position and title on request, within
+       60 studs.
+     - The Market Board (auction house) is economy work, not Phase 12.
 ]==]
