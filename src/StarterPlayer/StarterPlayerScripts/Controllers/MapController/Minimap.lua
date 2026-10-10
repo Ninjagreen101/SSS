@@ -31,6 +31,7 @@ local Animator = require(UI.Animator)
 local Surface = require(script.Parent.Surface)
 local Points = require(script.Parent.Points)
 local Icon = require(script.Parent.Icon)
+local Extra = require(script.Parent.Extra)
 
 local M = UITheme.Map
 local H = UITheme.HUD
@@ -51,6 +52,7 @@ local arrow: Frame
 local north: TextLabel
 local icons: { Icon.View } = {}
 local playerDots: { Frame } = {}
+local extraDots: { Frame } = {}
 local points: { Points.Point } = {}
 local floorInfo: Surface.MapInfo? = nil
 local size = M.MinimapSize
@@ -98,6 +100,24 @@ local function getDot(index: number): Frame
 	Create.Corner(dot, UDim.new(0.5, 0))
 	Create.Stroke(dot, Color3.new(0, 0, 0), 1, 0.3)
 	playerDots[index] = dot
+	return dot
+end
+
+local function getExtraDot(index: number): Frame
+	local existing = extraDots[index]
+	if existing then
+		return existing
+	end
+	local dot: Frame = Create.new("Frame", {
+		Name = "Extra",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		BorderSizePixel = 0,
+		ZIndex = 5,
+		Parent = overlay,
+	})
+	Create.Corner(dot, UDim.new(0.5, 0))
+	Create.Stroke(dot, Color3.new(0, 0, 0), 1, 0.2)
+	extraDots[index] = dot
 	return dot
 end
 
@@ -180,6 +200,27 @@ local function update()
 	end
 	for index = dots + 1, #playerDots do
 		playerDots[index].Visible = false
+	end
+
+	-- Extra markers (MapController.SetExtraMarkers: party members, pings).
+	local extras = 0
+	for _, marker in Extra.Collect() do
+		local offset, distance = place(Vector2.new(marker.World.X, marker.World.Z))
+		if distance <= limit or marker.Rim then
+			if distance > limit then
+				offset = offset.Unit * limit
+			end
+			extras += 1
+			local dot = getExtraDot(extras)
+			local dotSide = marker.Size or 9
+			dot.Visible = true
+			dot.Size = UDim2.fromOffset(dotSide, dotSide)
+			dot.BackgroundColor3 = marker.Color
+			dot.Position = UDim2.new(0.5, offset.X, 0.5, offset.Y)
+		end
+	end
+	for index = extras + 1, #extraDots do
+		extraDots[index].Visible = false
 	end
 
 	-- North on the rim.

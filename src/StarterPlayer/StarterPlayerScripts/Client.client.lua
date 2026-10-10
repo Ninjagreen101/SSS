@@ -66,6 +66,12 @@ local ORDER = {
 	"DialogueController",
 	"NameplateController",
 	"MapController",
+	"TradeController", -- trade requests and the trade window (Phase 12)
+	"PartyController", -- Party menu (P), party frames, invites, Finder, pings (Phase 12)
+	-- Emotes and inspect (Phase 12).
+	"EmoteController",
+	"InspectController",
+	"CompanyController", -- Company menu, invites, nameplate emblems (Phase 12)
 	"DataController",
 }
 

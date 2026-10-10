@@ -6,7 +6,8 @@
 	AwardKill: everyone who damaged an enemy and is within
 	Progression.PartyXP.ShareRadius when it dies gets its full XP and gold
 	(elites give Mobs.Elite.RewardMultiplier times as much). Helpers aren't
-	punished for grouping up; party bonuses arrive with parties.
+	punished for grouping up; party members nearby share it with a bonus
+	(Social.Party, PartyRules.ShareXP).
 
 	AddXP: levels up as many times as the XP covers (XP needed per level:
 	Formulas.XPToNext). Each level gives StatPointsPerLevel stat points, and
@@ -36,6 +37,8 @@ local DataService = require(script.Parent.DataService)
 local VitalsService = require(script.Parent.VitalsService)
 local AnalyticsService = require(script.Parent.AnalyticsService)
 local GameEvents = require(script.Parent.GameEvents)
+local PartyService = require(script.Parent.PartyService)
+local PartyRules = require(script.Parent.PartyRules)
 
 local P = Config.Progression
 
@@ -164,13 +167,33 @@ function ProgressionService.KillEligible(contributors: { [Player]: number }, pos
 end
 
 -- XP for a kill. Gold and items are dropped on the ground by LootService.
+-- Party members within Social.Party.ShareRadius of a player who earned it share the XP, and each
+-- gets +XPBonusPerMember per other member in range (PartyRules.ShareXP); without a party
+-- nearby it is the plain XP. Only the players who earned it count the kill.
 function ProgressionService.AwardKill(def: Mobs.MobDef, elite: boolean, players: { Player })
 	local multiplier = if elite then Config.Mobs.Elite.RewardMultiplier else 1
 	local xp = math.floor(def.Rewards.XP * multiplier)
+	local party = Config.Social.Party
+	local earned: { [Player]: boolean } = {}
+	local recipients = table.clone(players)
 	for _, player in players do
-		DataService.Increment(player, { "PlayStats", "Kills" }, 1)
-		Net.Fire("Notify", player, "Toasts.KillRewards", { xp = xp }, "Info")
-		ProgressionService.AddXP(player, xp)
+		earned[player] = true
+	end
+	for _, player in players do
+		for _, mate in PartyService.MembersNear(player, party.ShareRadius) do
+			if earned[mate] == nil then
+				earned[mate] = false
+				table.insert(recipients, mate)
+			end
+		end
+	end
+	for _, player in recipients do
+		local amount = PartyRules.ShareXP(xp, #PartyService.MembersNear(player, party.ShareRadius), party.XPBonusPerMember)
+		if earned[player] then
+			DataService.Increment(player, { "PlayStats", "Kills" }, 1)
+		end
+		Net.Fire("Notify", player, "Toasts.KillRewards", { xp = amount }, "Info")
+		ProgressionService.AddXP(player, amount)
 	end
 end
 

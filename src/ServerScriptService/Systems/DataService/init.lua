@@ -351,6 +351,19 @@ function DataService.SaveNow(player: Player)
 	profile:Save()
 end
 
+-- Before a cross-server teleport (InstanceService): false if the profile isn't loaded or is
+-- trade-locked (don't send them); otherwise saves now and returns true. The session lock is
+-- deliberately kept: it is released on PlayerRemoving like any leave, and ProfileStore's
+-- session-conflict messaging asks this server to end it as soon as the destination starts
+-- loading. Ending it here would kick the player (OnSessionEnd) if the teleport then failed.
+function DataService.PrepareTeleport(player: Player): boolean
+	if not profiles[player] or tradeLocked[player] then
+		return false
+	end
+	DataService.SaveNow(player)
+	return true
+end
+
 -- Locks profiles for a trade confirmation window. Returns false if any is
 -- missing or already locked (no partial locks are left behind).
 function DataService.LockForTrade(players: { Player }): boolean

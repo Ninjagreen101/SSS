@@ -28,6 +28,7 @@ local QuestController = require(script.Parent.QuestController)
 local Surface = require(script.Surface)
 local FullMap = require(script.FullMap)
 local Minimap = require(script.Minimap)
+local Extra = require(script.Extra)
 
 local MapController = {}
 
@@ -43,6 +44,13 @@ function MapController.Open()
 	if UIController.GetOpen() ~= FullMap.MenuId then
 		UIController.Open(FullMap.MenuId)
 	end
+end
+
+-- Live markers from other controllers (party members, pings) on the Map and the minimap.
+-- `provider` returns the current markers and is called every map update; nil removes it.
+export type ExtraMarker = Extra.Marker
+function MapController.SetExtraMarkers(key: string, provider: Extra.Provider?)
+	Extra.Set(key, provider)
 end
 
 -- The floor this server runs and world <-> map helpers, for other controllers.

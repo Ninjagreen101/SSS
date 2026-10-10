@@ -18,6 +18,13 @@
 	Closing: a run with nobody inside for CloseAfterEmpty seconds is destroyed with its spawns.
 	Everything here is decided on the server; clients only touch prompts the server created and
 	positions the server reads itself.
+
+	Reserved servers (Phase 12, InstanceService): a gathering also takes the gatherers' party
+	members near the door. When it closes the group is handed to InstanceService.Begin; only if
+	that returns false (Studio, unpublished, failures) does the in-server copy above run. In an
+	instance server there are no doors: the run is built as soon as the party is known, members
+	rise at its Arrival (also after death) and are kept inside, exit portals and a finished run
+	(cleared, and every member has opened the hoard) send them home to the ExitWaystone.
 ]]
 
 local CollectionService = game:GetService("CollectionService")
@@ -41,6 +48,7 @@ local AnalyticsService = require(script.Parent.AnalyticsService)
 local Rewards = require(script.Parent.Rewards)
 local AntiExploitService = require(script.Parent.AntiExploitService)
 local GameEvents = require(script.Parent.GameEvents)
+local InstanceService = require(script.Parent.InstanceService)
 
 local D = Config.Dungeons
 local log = Log.new("DungeonService")
@@ -72,6 +80,8 @@ local gatherings: { [BasePart]: Gathering } = {}
 local playerRun: { [Player]: Run } = {}
 local serial = 0
 local folder: Folder
+local instanceRun: Run? = nil -- the run an instance server holds
+local pulling: { [Player]: boolean } = {}
 
 local function rootOf(player: Player): BasePart?
 	local character = player.Character
@@ -229,20 +239,18 @@ local function prompt(host: BasePart, action: string, object: string, onTrigger:
 	end)
 end
 
-local function startRun(dungeonId: string, group: { Player })
+-- Builds a copy of the dungeon in a free slot; nil and why if it can't.
+local function buildRun(dungeonId: string): (Run?, string?)
 	local def = D.Dungeons[dungeonId]
 	local templates = ServerStorage:FindFirstChild("Dungeons")
 	local template = templates and templates:FindFirstChild(def.Template)
 	if not template or not template:IsA("Model") then
 		log:Warn(`no template ServerStorage.Dungeons.{def.Template} (run DungeonBuilder)`)
-		return
+		return nil, "NoTemplate"
 	end
 	local slot = freeSlot()
 	if not slot then
-		for _, player in group do
-			Net.Fire("Notify", player, "Toasts.DungeonFull", {}, "Warning")
-		end
-		return
+		return nil, "Full"
 	end
 	serial += 1
 	slotsUsed[slot] = true
@@ -306,22 +314,168 @@ local function startRun(dungeonId: string, group: { Player })
 			CollectionService:AddTag(d, "SpireDungeonExit")
 		end
 	end
-	-- the group goes in
-	local arrival = model:FindFirstChild("Arrival")
-	local arrivalCF = if arrival and arrival:IsA("BasePart") then arrival.CFrame else origin
-	for i, player in group do
-		run.Members[player] = true
-		playerRun[player] = run
-		teleport(player, arrivalCF * CFrame.new((i - 1) * 3 - 4, 0, 0))
-		AnalyticsService.Custom(player, "DungeonEntered")
+	return run, nil
+end
+
+local function arrivalCFrame(run: Run): CFrame
+	local arrival = run.Model:FindFirstChild("Arrival")
+	return if arrival and arrival:IsA("BasePart") then arrival.CFrame else run.Origin
+end
+
+local function enterRun(run: Run, player: Player, index: number)
+	run.Members[player] = true
+	playerRun[player] = run
+	teleport(player, arrivalCFrame(run) * CFrame.new((index - 1) * 3 - 4, 0, 0))
+	AnalyticsService.Custom(player, "DungeonEntered")
+end
+
+local function startRun(dungeonId: string, group: { Player })
+	local run, why = buildRun(dungeonId)
+	if not run then
+		if why == "Full" then
+			for _, player in group do
+				Net.Fire("Notify", player, "Toasts.DungeonFull", {}, "Warning")
+			end
+		end
+		return
 	end
-	log:Info(`started {dungeonId} run {serial} in slot {slot} for {#group}`)
+	for i, player in group do
+		enterRun(run, player, i)
+	end
+	log:Info(`started {dungeonId} run {run.Id} in slot {run.Slot} for {#group}`)
+end
+
+-- Busy players can't be gathered: in a run, or on their way to another server.
+local function busy(player: Player): boolean
+	return playerRun[player] ~= nil or InstanceService.IsTeleporting(player)
+end
+
+-- The gatherers' party members near the door come too, up to MaxPlayers (MinLevel still applies).
+local function addParty(group: { Player }, door: BasePart, def: Config.DungeonDef)
+	for _, gatherer in table.clone(group) do
+		for _, member in InstanceService.PartyNear(gatherer, door.Position, D.DoorRadius * 3) do
+			if #group >= def.MaxPlayers then
+				return
+			end
+			if table.find(group, member) or busy(member) then
+				continue
+			end
+			local data = DataService.GetData(member)
+			if data and data.Level >= def.MinLevel then
+				table.insert(group, member)
+			else
+				Net.Fire("Notify", member, "Toasts.DungeonLevel", { level = def.MinLevel }, "Warning")
+			end
+		end
+	end
+end
+
+-- A reserved server first; this server's copy if that can't happen (or for anyone whose
+-- teleport fails for good later).
+local function launch(dungeonId: string, group: { Player })
+	local function fallback(players: { Player })
+		local here: { Player } = {}
+		for _, player in players do
+			if player.Parent == Players and not busy(player) then
+				table.insert(here, player)
+			end
+		end
+		if #here > 0 then
+			startRun(dungeonId, here)
+		end
+	end
+	if not InstanceService.Begin("Dungeon", dungeonId, group, fallback) then
+		fallback(group)
+	end
+end
+
+-- INSTANCE SERVER ------------------------------------------------------------
+
+-- A member arriving in this instance server joins the run (MinLevel is re-checked: teleport
+-- data passes through the client).
+local function admitToInstance(player: Player, index: number): boolean
+	local run = instanceRun
+	if not run then
+		return false
+	end
+	local data = DataService.GetData(player)
+	if not data or data.Level < run.Def.MinLevel then
+		Net.Fire("Notify", player, "Toasts.DungeonLevel", { level = run.Def.MinLevel }, "Warning")
+		return false
+	end
+	enterRun(run, player, index)
+	return true
+end
+
+local function registerInstance()
+	InstanceService.Register("Dungeon", {
+		Prepare = function(record: InstanceService.Record): boolean
+			local run = buildRun(record.Id)
+			if not run then
+				return false
+			end
+			instanceRun = run
+			FloorService.SetRunSpawn(function(player: Player): CFrame?
+				local current = instanceRun
+				if not current or not InstanceService.IsMember(player) then
+					return nil
+				end
+				return arrivalCFrame(current) * CFrame.new((player.UserId % 4) * 3 - 4, 3, 0)
+			end)
+			return true
+		end,
+		Begin = function(players: { Player })
+			local refused: { Player } = {}
+			for index, player in players do
+				if not admitToInstance(player, index) then
+					table.insert(refused, player)
+				end
+			end
+			if #refused > 0 then
+				InstanceService.ReturnPlayers(refused, "Level")
+			end
+			local run = instanceRun
+			if not run or next(run.Members) == nil then
+				InstanceService.ReturnAll("Failed")
+			end
+		end,
+		Join = function(player: Player): boolean
+			return admitToInstance(player, 1)
+		end,
+		ReturnTo = function(record: InstanceService.Record): string?
+			local def = D.Dungeons[record.Id]
+			return if def then `Waystone:{def.ExitWaystone}` else nil
+		end,
+	})
+end
+
+-- Instance server: members stay in the run; a cleared run whose hoard everyone opened ends.
+local function keepInstance(run: Run)
+	local allOpened = run.Cleared
+	local anyone = false
+	for player in run.Members do
+		anyone = true
+		if not run.ChestOpenedBy[player] then
+			allOpened = false
+		end
+		local root = rootOf(player)
+		if root and not pulling[player] and not insideRun(run, root.Position) then
+			pulling[player] = true
+			task.spawn(function()
+				teleport(player, arrivalCFrame(run))
+				pulling[player] = nil
+			end)
+		end
+	end
+	if anyone and allOpened then
+		InstanceService.ReturnAll("Cleared")
+	end
 end
 
 local function tryJoin(door: BasePart, player: Player)
 	local dungeonId = door:GetAttribute("DungeonId")
 	local def = if type(dungeonId) == "string" then D.Dungeons[dungeonId] else nil
-	if not def or playerRun[player] then
+	if not def or busy(player) then
 		return
 	end
 	local data = DataService.GetData(player)
@@ -347,8 +501,10 @@ local warned: { [Player]: number } = {}
 
 local function scan()
 	local t = os.clock()
-	-- doors
-	for _, door in CollectionService:GetTagged("SpireDungeonDoor") do
+	local inInstance = InstanceService.IsInstanceServer()
+	-- doors (an instance server has none: its members are kept in their run)
+	local doors: { Instance } = if inInstance then {} else CollectionService:GetTagged("SpireDungeonDoor")
+	for _, door in doors do
 		if not door:IsA("BasePart") then
 			continue
 		end
@@ -371,12 +527,13 @@ local function scan()
 			for _, player in gathering.Players do
 				local root = rootOf(player)
 				-- still near the door when the run starts
-				if player.Parent == Players and root and (root.Position - door.Position).Magnitude <= D.DoorRadius * 3 then
+				if player.Parent == Players and root and not busy(player) and (root.Position - door.Position).Magnitude <= D.DoorRadius * 3 then
 					table.insert(group, player)
 				end
 			end
 			if #group > 0 then
-				startRun(gathering.DungeonId, group)
+				addParty(group, door, def)
+				task.spawn(launch, gathering.DungeonId, group)
 			end
 		end
 	end
@@ -392,7 +549,13 @@ local function scan()
 		for player in run.Members do
 			local root = rootOf(player)
 			if root and (root.Position - exit.Position).Magnitude <= 5 then
-				exitRun(player, run)
+				if inInstance then
+					run.Members[player] = nil
+					playerRun[player] = nil
+					InstanceService.ReturnPlayers({ player }, "Exit")
+				else
+					exitRun(player, run)
+				end
 			end
 		end
 	end
@@ -414,7 +577,10 @@ local function scan()
 				anyone = true
 			end
 		end
-		if anyone then
+		if inInstance then
+			-- never closed here: the server itself closes once everyone has gone home
+			keepInstance(run)
+		elseif anyone then
 			run.EmptySince = nil
 		else
 			run.EmptySince = run.EmptySince or t
@@ -449,7 +615,9 @@ function DungeonService.Start()
 		end
 		playerRun[player] = nil
 		warned[player] = nil
+		pulling[player] = nil
 	end)
+	registerInstance()
 	local acc = 0
 	RunService.Heartbeat:Connect(function(dt: number)
 		acc += dt

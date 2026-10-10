@@ -18,6 +18,13 @@
 	  discovered Waystone, RequestWaystoneTravel(targetId) moves you to another
 	  discovered one on this floor. Refused in combat (TravelCombatLock),
 	  during the tutorial, and within TravelCooldown of the last trip.
+
+	- Reserved instances (Phase 12, InstanceService): in an instance server the
+	  run's owner sets a run spawn (SetRunSpawn) and may hold respawns
+	  (SetSpawnHold); members always rise in the run, never on the floor, and
+	  can't fast travel. In a public server, a player coming home from a run
+	  rises once at its ReturnTo: a dungeon's exit Waystone or a Guardian
+	  gate's Return point (anything else is ignored).
 ]]
 
 local CollectionService = game:GetService("CollectionService")
@@ -38,6 +45,7 @@ local VitalsService = require(script.Parent.VitalsService)
 local AnalyticsService = require(script.Parent.AnalyticsService)
 local ProgressionService = require(script.Parent.ProgressionService)
 local GameEvents = require(script.Parent.GameEvents)
+local InstanceService = require(script.Parent.InstanceService)
 
 local A = Attributes.Names
 local log = Log.new("FloorService")
@@ -54,6 +62,8 @@ local FloorService = {}
 local waystones: { [string]: Waystone } = {}
 local floorId = "1"
 local lastTravel: { [Player]: number } = {}
+local runSpawn: ((Player) -> CFrame?)? = nil
+local spawnHold: ((Player) -> boolean)? = nil
 
 local function displayName(id: string): string
 	return Strings.Waystones[id] or id
@@ -165,14 +175,73 @@ local function scanDiscoveries()
 	end
 end
 
+local function isDungeonExit(id: string): boolean
+	for _, def in Config.Dungeons.Dungeons do
+		if def.ExitWaystone == id then
+			return true
+		end
+	end
+	return false
+end
+
+-- A ReturnTo point from teleport data, checked against this floor: only a dungeon's exit
+-- Waystone or a Guardian gate's Return marker (teleport data passes through the client).
+local function returnPoint(kind: string, id: string): CFrame?
+	if kind == "Waystone" then
+		local waystone = waystones[id]
+		return if waystone and isDungeonExit(id) then spawnCFrame(waystone) else nil
+	end
+	if kind == "Gate" then
+		for _, gate in CollectionService:GetTagged(Attributes.Tags.GuardianGate) do
+			if gate:IsA("BasePart") and gate:GetAttribute(A.GuardianId) == id then
+				local holder = gate.Parent
+				local marker = holder and holder:FindFirstChild("Return")
+				if marker and marker:IsA("BasePart") then
+					return marker.CFrame + Vector3.new(0, Config.World.Waystones.SpawnHeight, 0)
+				end
+			end
+		end
+	end
+	return nil
+end
+
 -- PUBLIC API -----------------------------------------------------------------
 
 function FloorService.GetFloorId(): string
 	return floorId
 end
 
+-- Instance servers: where members of the run rise (nil: not a member / no run).
+function FloorService.SetRunSpawn(resolver: ((Player) -> CFrame?)?)
+	runSpawn = resolver
+end
+
+-- Instance servers: true from `hold` keeps a player from rising for now (a Guardian fight).
+function FloorService.SetSpawnHold(hold: ((Player) -> boolean)?)
+	spawnHold = hold
+end
+
+-- Whether this player may not get a character right now (CharacterService asks).
+function FloorService.SpawnHeld(player: Player): boolean
+	if InstanceService.HoldsSpawn(player) then
+		return true
+	end
+	local hold = spawnHold
+	return hold ~= nil and hold(player)
+end
+
 -- Where a player should (re)spawn on this floor.
 function FloorService.GetSpawnCFrame(player: Player): CFrame
+	local resolver = runSpawn
+	local inRun = if resolver then resolver(player) else nil
+	if inRun then
+		return inRun
+	end
+	local kind, id = InstanceService.TakeReturnTo(player)
+	local returning = if kind and id then returnPoint(kind, id) else nil
+	if returning then
+		return returning
+	end
 	local data = DataService.GetData(player)
 	local last = data and data.Waystones.Last
 	if last and waystones[last] then
@@ -216,6 +285,10 @@ local function travel(player: Player, targetId: string)
 	local root = character and character:FindFirstChild("HumanoidRootPart")
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	if not data or not root or not root:IsA("BasePart") or not humanoid or humanoid.Health <= 0 then
+		refuse("Busy")
+		return
+	end
+	if InstanceService.IsInstanceServer() then
 		refuse("Busy")
 		return
 	end

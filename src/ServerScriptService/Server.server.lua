@@ -28,6 +28,7 @@ local ORDER = {
 	"AnalyticsService",
 	"AntiExploitService",
 	"DataService",
+	"InstanceService", -- reserved-server runs (Phase 12): before FloorService and the run owners
 	"GearService",
 	"VitalsService",
 	"FloorService",
@@ -41,6 +42,7 @@ local ORDER = {
 	"CurrentService",
 	"ProjectileService",
 	"ProgressionService",
+	"PartyService", -- parties, raids, pings, Party Finder, party chat (Phase 12)
 	"MobService",
 	"SpellService",
 	"BeaconService",
@@ -60,6 +62,9 @@ local ORDER = {
 	"AchievementService",
 	"NpcService",
 	"MapService",
+	"TradeService", -- player trading (Phase 12)
+	"InspectService", -- inspect + emote slots (Phase 12)
+	"CompanyService", -- Climber Companies (Phase 12)
 	"DevService",
 }
 

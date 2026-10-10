@@ -35,6 +35,17 @@
 	  CloseAfterSeconds the living are returned to the gate, receive their personal loot there, and
 	  the arena is destroyed. Wipe: when every member is dead or gone the Warden fades, the party is
 	  told, and the arena closes after CloseAfterSeconds (the dead rise at their Waystone as usual).
+
+	Reserved servers (Phase 12, InstanceService)
+	  A gathering also takes the gatherers' party members near the gate. When it closes the group
+	  is handed to InstanceService.Begin; only if that returns false (Studio, unpublished,
+	  failures) does this server's arena run. In an instance server the arena is built and sealed
+	  as soon as the party is known and members rise in it; the fight starts for whoever arrived
+	  (InstanceService Begin), late arrivals go home (health is fixed by the party at the start).
+	  Members pushed out of the arena are put back instead of dropped; the dead stay down until
+	  the fight is over (FloorService.SetSpawnHold), then rise in the arena. At the end the victors
+	  get their loot where they stand and everyone goes home to the gate's Return point after
+	  ReturnTimeout; the arena is left standing under them.
 ]]
 
 local CollectionService = game:GetService("CollectionService")
@@ -66,6 +77,7 @@ local AntiExploitService = require(script.Parent.AntiExploitService)
 local AnalyticsService = require(script.Parent.AnalyticsService)
 local EconomyService = require(script.Parent.EconomyService)
 local GameEvents = require(script.Parent.GameEvents)
+local InstanceService = require(script.Parent.InstanceService)
 
 local Types = require(script.Types)
 local Rules = require(script.Rules)
@@ -92,6 +104,15 @@ local MAX_FLOOR_LENGTH = 8
 type Fight = Types.Fight
 type GuardianDef = Guardians.GuardianDef
 
+-- An instance server's arena, built before the party has arrived.
+type Prepared = {
+	Gate: BasePart,
+	GuardianId: string,
+	Def: GuardianDef,
+	Arena: Types.Arena,
+	Slot: number,
+}
+
 type Gathering = {
 	Gate: BasePart,
 	GuardianId: string,
@@ -114,6 +135,9 @@ local lastPublish = -math.huge
 local lastGlobalBanner = -math.huge
 local serial = 0
 local folder: Folder
+local instanceArena: Prepared? = nil -- instance server: the arena of its run
+local instanceFight: Fight? = nil -- instance server: the fight of its run
+local pulling: { [Player]: boolean } = {}
 
 local now = Fight.Now
 
@@ -227,10 +251,38 @@ local function removeMember(fight: Fight, player: Player)
 end
 
 -- Drops members who died, left or are no longer in the arena; counts time alive inside.
+-- Instance server: where a member stands in the arena (spread over its player spawns).
+local function arenaSpawn(arena: Types.Arena, player: Player): CFrame
+	local spawns = arena.PlayerSpawns
+	if #spawns > 0 then
+		return spawns[player.UserId % #spawns + 1]
+	end
+	return arena.Origin * CFrame.new(0, 0, arena.Radius / 2)
+end
+
+-- Instance server: a living member outside the arena is put back (there is no floor to go to).
+local function pullBack(fight: Fight, player: Player)
+	if pulling[player] then
+		return
+	end
+	pulling[player] = true
+	task.spawn(function()
+		local ok, err = protect(function()
+			teleport(player, arenaSpawn(fight.Arena, player))
+		end)
+		if not ok then
+			log:Warn(`pulling {player.Name} back failed: {tostring(err)}`)
+		end
+		pulling[player] = nil
+	end)
+end
+
 local function updateMembers(fight: Fight, dt: number)
 	for player in fight.Members do
 		local root = Fight.RootOf(player)
-		if not root or not Arena.Inside(fight.Arena, root.Position, fight.Arena.Radius) then
+		if root and fight == instanceFight and not Arena.Inside(fight.Arena, root.Position, fight.Arena.Radius) then
+			pullBack(fight, player)
+		elseif not root or not Arena.Inside(fight.Arena, root.Position, fight.Arena.Radius) then
 			removeMember(fight, player)
 		else
 			local participant = fight.Participants[player]
@@ -501,21 +553,26 @@ local function returnAndClose(fight: Fight)
 	if fight.State ~= "Victory" and fight.State ~= "Wipe" then
 		return
 	end
-	local moves = {}
-	for index, player in Fight.MemberList(fight) do
-		if Fight.RootOf(player) then
-			local base = returnCFrame(fight, player)
-			table.insert(moves, { Player = player, CFrame = base * CFrame.new((index - 1) * RETURN_SPACING - RETURN_SPACING, 0, 0) })
+	local inInstance = fight == instanceFight
+	if not inInstance then
+		local moves = {}
+		for index, player in Fight.MemberList(fight) do
+			if Fight.RootOf(player) then
+				local base = returnCFrame(fight, player)
+				table.insert(moves, { Player = player, CFrame = base * CFrame.new((index - 1) * RETURN_SPACING - RETURN_SPACING, 0, 0) })
+			end
 		end
+		teleportAll(moves)
 	end
-	teleportAll(moves)
 	if fight.State == "Victory" then
 		local def = fight.Def
 		local body = lootBody(def)
 		for _, player in fight.Eligible do
 			if body and player.Parent == Players then
 				local root = Fight.RootOf(player)
-				local position = if root then root.Position else returnCFrame(fight, player).Position
+				-- in an instance the loot lands in the arena, where the dead will rise
+				local fallback = if inInstance then arenaSpawn(fight.Arena, player) else returnCFrame(fight, player)
+				local position = if root then root.Position else fallback.Position
 				local ok, err = protect(function()
 					LootService.AwardKill(def.Rewards.LootTable, body, false, { player }, position, nil)
 				end)
@@ -594,6 +651,7 @@ close = function(fight: Fight)
 	if fight.State == "Closed" then
 		return
 	end
+	local ended = fight.State
 	fight.State = "Closed"
 	Moves.Cancel(fight)
 	Moves.ClearHazards(fight)
@@ -613,6 +671,13 @@ close = function(fight: Fight)
 	end
 	table.clear(fight.Members)
 	fights[fight.Id] = nil
+	if fight == instanceFight then
+		-- The arena stays under everyone's feet; the whole server goes home.
+		fight.Maid:Clean()
+		log:Info(`fight {fight.Id}: closed ({ended}); returning the instance`)
+		InstanceService.ReturnAll(if ended == "Victory" or ended == "Wipe" then ended else "Failed")
+		return
+	end
 	slotsUsed[fight.Slot] = nil
 	Arena.Destroy(fight.Arena)
 	fight.Maid:Clean()
@@ -930,22 +995,20 @@ local function enterFight(fight: Fight, group: { Player })
 	log:Info(`fight {fight.Id}: {fight.GuardianId} for {#group} in slot {fight.Slot}`)
 end
 
-local function startFight(gate: BasePart, guardianId: string, def: GuardianDef, group: { Player })
+-- Clones the Guardian's arena into a free slot; nil if the template, body or a slot is missing.
+local function buildArena(guardianId: string, def: GuardianDef): (Types.Arena?, number?)
 	local template = Arena.Template(def.Arena)
 	if not template then
 		errorOnce(`template:{def.Arena}`, `no arena template ServerStorage.GuardianArenas.{def.Arena} (run Tools.Floor1GuardianArena)`)
-		notify(group, "Guardians.ArenaBusy", nil, "Warning")
-		return
+		return nil, nil
 	end
 	if not Mobs.Get(def.MobId) then
 		errorOnce(`body:{def.MobId}`, `no body {def.MobId} in Shared.Data.Mobs`)
-		notify(group, "Guardians.ArenaBusy", nil, "Warning")
-		return
+		return nil, nil
 	end
 	local slot = freeSlot()
 	if not slot then
-		notify(group, "Guardians.ArenaBusy", nil, "Warning")
-		return
+		return nil, nil
 	end
 	slotsUsed[slot] = true
 	serial += 1
@@ -953,8 +1016,23 @@ local function startFight(gate: BasePart, guardianId: string, def: GuardianDef, 
 	if not built then
 		slotsUsed[slot] = nil
 		errorOnce(`arena:{def.Arena}`, `could not build arena {def.Arena}: {tostring(arena)}`)
-		notify(group, "Guardians.ArenaBusy", nil, "Warning")
-		return
+		return nil, nil
+	end
+	return arena, slot
+end
+
+-- `prepared`: an instance server's arena, already built (the party is standing in it).
+local function startFight(gate: BasePart, guardianId: string, def: GuardianDef, group: { Player }, prepared: Prepared?)
+	local arena: Types.Arena, slot: number
+	if prepared then
+		arena, slot = prepared.Arena, prepared.Slot
+	else
+		local built, builtSlot = buildArena(guardianId, def)
+		if not built or not builtSlot then
+			notify(group, "Guardians.ArenaBusy", nil, "Warning")
+			return
+		end
+		arena, slot = built, builtSlot
 	end
 	local fight: Fight = {
 		Id = serial,
@@ -994,6 +1072,9 @@ local function startFight(gate: BasePart, guardianId: string, def: GuardianDef, 
 	}
 	fight.SweepMirrored = fight.Random:NextNumber() < 0.5 -- the first Coral Sweep opens from a random side
 	fights[fight.Id] = fight
+	if prepared then
+		instanceFight = fight
+	end
 	for _, player in group do
 		fight.Members[player] = true
 		fight.Participants[player] = { Player = player, Name = player.DisplayName, Inside = 0 }
@@ -1006,14 +1087,16 @@ local function startFight(gate: BasePart, guardianId: string, def: GuardianDef, 
 	if not ok then
 		log:Error(`fight {fight.Id} failed to start: {tostring(err)}`)
 		notify(Fight.MemberList(fight), "Guardians.ArenaBusy", nil, "Warning")
-		-- whoever was already moved in goes back to the gate
-		local moves = {}
-		for _, player in Fight.MemberList(fight) do
-			if Fight.RootOf(player) then
-				table.insert(moves, { Player = player, CFrame = returnCFrame(fight, player) })
+		if fight ~= instanceFight then
+			-- whoever was already moved in goes back to the gate
+			local moves = {}
+			for _, player in Fight.MemberList(fight) do
+				if Fight.RootOf(player) then
+					table.insert(moves, { Player = player, CFrame = returnCFrame(fight, player) })
+				end
 			end
+			teleportAll(moves)
 		end
-		teleportAll(moves)
 		close(fight)
 	end
 end
@@ -1045,6 +1128,30 @@ local function leaveGathering(gathering: Gathering, player: Player)
 	end
 end
 
+-- Not fighting, not in a dungeon run, not on the way to another server.
+local function isFree(player: Player): boolean
+	return playerFight[player] == nil and DungeonService.GetRun(player) == nil and not InstanceService.IsTeleporting(player)
+end
+
+-- A reserved server first; this server's arena if that can't happen (or for anyone whose
+-- teleport fails for good later).
+local function launch(gate: BasePart, guardianId: string, def: GuardianDef, group: { Player })
+	local function fallback(players: { Player })
+		local here: { Player } = {}
+		for _, player in players do
+			if player.Parent == Players and Fight.RootOf(player) and isFree(player) then
+				table.insert(here, player)
+			end
+		end
+		if #here > 0 then
+			startFight(gate, guardianId, def, here, nil)
+		end
+	end
+	if not InstanceService.Begin("Guardian", guardianId, group, fallback) then
+		fallback(group)
+	end
+end
+
 local function finishGathering(gathering: Gathering)
 	if gatherings[gathering.Gate] ~= gathering then
 		return
@@ -1057,13 +1164,28 @@ local function finishGathering(gathering: Gathering)
 			playerGathering[player] = nil
 		end
 		local root = Fight.RootOf(player)
-		local free = playerFight[player] == nil and DungeonService.GetRun(player) == nil
-		if root and free and (root.Position - gathering.Gate.Position).Magnitude <= radius then
+		if root and isFree(player) and (root.Position - gathering.Gate.Position).Magnitude <= radius then
 			table.insert(group, player)
 		end
 	end
+	-- the gatherers' party members at the gate come too (warned, not refused, below its level)
+	for _, gatherer in table.clone(group) do
+		for _, member in InstanceService.PartyNear(gatherer, gathering.Gate.Position, radius) do
+			if #group >= G.MaxPlayers then
+				break
+			end
+			if table.find(group, member) or not isFree(member) or playerGathering[member] ~= nil then
+				continue
+			end
+			table.insert(group, member)
+			local data = DataService.GetData(member)
+			if data and data.Level < gathering.Def.Level then
+				Net.Fire("Notify", member, "Guardians.BelowLevel", { level = gathering.Def.Level }, "Warning")
+			end
+		end
+	end
 	if #group > 0 then
-		task.spawn(startFight, gathering.Gate, gathering.GuardianId, gathering.Def, group)
+		task.spawn(launch, gathering.Gate, gathering.GuardianId, gathering.Def, group)
 	end
 end
 
@@ -1074,7 +1196,7 @@ local function onChallenge(gate: BasePart, player: Player)
 		return
 	end
 	local root = Fight.RootOf(player)
-	if not root or playerFight[player] or DungeonService.GetRun(player) ~= nil then
+	if not root or not isFree(player) or InstanceService.IsInstanceServer() then
 		return
 	end
 	local prompt = gates[gate]
@@ -1149,6 +1271,67 @@ local function registerGate(instance: Instance)
 	gates[gate] = prompt
 end
 
+-- INSTANCE SERVER ------------------------------------------------------------------------------
+
+local function findGate(guardianId: string): BasePart?
+	for gate in gates do
+		if gate:GetAttribute(A.GuardianId) == guardianId then
+			return gate
+		end
+	end
+	return nil
+end
+
+local function fightRunning(fight: Fight): boolean
+	return fight.State == "Starting" or fight.State == "Intro" or fight.State == "Active"
+end
+
+local function registerInstance()
+	InstanceService.Register("Guardian", {
+		Prepare = function(record: InstanceService.Record): boolean
+			local def = Guardians.Get(record.Id)
+			local gate = findGate(record.Id)
+			if not def or not gate then
+				log:Error(`instance: no Guardian or gate for {record.Id}`)
+				return false
+			end
+			local arena, slot = buildArena(record.Id, def)
+			if not arena or not slot then
+				return false
+			end
+			Arena.SetSealed(arena, true)
+			instanceArena = { Gate = gate, GuardianId = record.Id, Def = def, Arena = arena, Slot = slot }
+			FloorService.SetRunSpawn(function(player: Player): CFrame?
+				local current = instanceArena
+				if not current or not InstanceService.IsMember(player) then
+					return nil
+				end
+				return arenaSpawn(current.Arena, player) + Vector3.new(0, ARRIVE_HEIGHT, 0)
+			end)
+			-- The fallen stay down until the fight is over (rising in the arena would revive them).
+			FloorService.SetSpawnHold(function(player: Player): boolean
+				local fight = instanceFight
+				return fight ~= nil and fightRunning(fight) and not fight.Members[player]
+			end)
+			return true
+		end,
+		Begin = function(players: { Player })
+			local current = instanceArena
+			if not current then
+				InstanceService.ReturnAll("Failed")
+				return
+			end
+			startFight(current.Gate, current.GuardianId, current.Def, players, current)
+		end,
+		Join = function(_player: Player): boolean
+			return false
+		end,
+		ReturnTo = function(record: InstanceService.Record): string?
+			return `Gate:{record.Id}`
+		end,
+	})
+end
+
 -- PUBLIC API -----------------------------------------------------------------------------------
 
 -- True while the player is fighting a Guardian (or being moved into one).
@@ -1194,10 +1377,12 @@ function GuardianService.Start()
 		end
 		playerFight[player] = nil
 		playerGathering[player] = nil
+		pulling[player] = nil
 		for _, other in fights do
 			other.BlockedAt[player] = nil
 		end
 	end)
+	registerInstance()
 
 	task.spawn(function()
 		local ok, err = pcall(function()

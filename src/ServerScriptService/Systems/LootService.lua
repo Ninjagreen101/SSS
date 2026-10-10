@@ -35,6 +35,8 @@ local InventoryService = require(script.Parent.InventoryService)
 local AnalyticsService = require(script.Parent.AnalyticsService)
 local GearService = require(script.Parent.GearService)
 local GameEvents = require(script.Parent.GameEvents)
+local PartyService = require(script.Parent.PartyService)
+local PartyRules = require(script.Parent.PartyRules)
 
 type PlayerData = Types.PlayerData
 
@@ -283,9 +285,37 @@ end
 -- Called by MobService once per death with the players who earned a share.
 function LootService.AwardKill(mobId: string, def: Mobs.MobDef, elite: boolean, players: { Player }, position: Vector3, zone: string?)
 	local zoneName = if zone and Config.Loot.Zones[zone] then zone else Config.Loot.DefaultZone
+	local rolls: { [Player]: { Entry } } = {}
 	for _, player in players do
 		if DataService.IsLoaded(player) then
-			spawnDrops(player, position, rollFor(player, mobId, def, elite, zoneName))
+			rolls[player] = rollFor(player, mobId, def, elite, zoneName)
+		end
+	end
+	-- SharedGold parties: pool everyone's gold roll and split it evenly (PartyRules.SplitGold).
+	for _, group in PartyService.SharedGoldGroups(players) do
+		local total, members = 0, {}
+		for _, member in group do
+			local entries = rolls[member]
+			if entries then
+				table.insert(members, member)
+				for index = #entries, 1, -1 do
+					if entries[index].Gold > 0 then
+						total += entries[index].Gold
+						table.remove(entries, index)
+					end
+				end
+			end
+		end
+		for index, share in PartyRules.SplitGold(total, #members) do
+			if share > 0 then
+				table.insert(rolls[members[index]], 1, { Item = nil, Count = 1, Gold = share })
+			end
+		end
+	end
+	for _, player in players do
+		local entries = rolls[player]
+		if entries then
+			spawnDrops(player, position, entries)
 		end
 	end
 end

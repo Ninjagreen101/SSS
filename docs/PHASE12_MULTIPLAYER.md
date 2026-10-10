@@ -40,7 +40,7 @@ Server APIs other systems use:
 
 **Integration points:**
 - ProgressionService kill XP sharing uses `PartyService.MembersNear` with `ShareRadius` and `XPBonusPerMember`.
-- DungeonService and GuardianService gatherings include the challenger's party members who are near the door or gate. They hand the run to `InstanceService.Start(mode, id, players)`. That call returns `false` when a reserved server can't be used, and the existing in-server path then runs.
+- DungeonService and GuardianService gatherings include the challenger's party members who are near the door or gate. They hand the run to `InstanceService.Begin(mode, id, players)`. That call returns `false` when a reserved server can't be used, and the existing in-server path then runs.
 - In a reserved instance server, DungeonService and GuardianService start their run directly for the arriving party (`InstanceService.GetMode()`).
 
 ## 3. Build split

@@ -149,6 +149,10 @@ local function fill(watch: Watch)
 	end
 	local who = watch.Player
 	plate.Name.Text = who.DisplayName
+	-- Party members' names are tinted teal (attribute PartyId, Phase 12).
+	local partyId = localPlayer:GetAttribute(A.PartyId)
+	local mate = type(partyId) == "string" and partyId ~= "" and who:GetAttribute(A.PartyId) == partyId
+	plate.Name.TextColor3 = if mate then C.Current else C.Text
 	local level = who:GetAttribute(A.Level)
 	plate.Level.Text = if type(level) == "number" then Strings.Format(Q.PlateLevel, { level = level }) else ""
 	plate.Level.Visible = plate.Level.Text ~= ""
@@ -216,6 +220,9 @@ local function watchPlayer(who: Player)
 	table.insert(watch.Connections, who:GetAttributeChangedSignal(A.Title):Connect(function()
 		fill(watch)
 	end))
+	table.insert(watch.Connections, who:GetAttributeChangedSignal(A.PartyId):Connect(function()
+		fill(watch)
+	end))
 	table.insert(watch.Connections, who:GetPropertyChangedSignal("DisplayName"):Connect(function()
 		fill(watch)
 	end))
@@ -277,6 +284,11 @@ function NameplateController.Start()
 	end
 	Players.PlayerAdded:Connect(watchPlayer)
 	Players.PlayerRemoving:Connect(unwatchPlayer)
+	localPlayer:GetAttributeChangedSignal(A.PartyId):Connect(function()
+		for _, watch in watched do
+			fill(watch)
+		end
+	end)
 	task.spawn(function()
 		while true do
 			task.wait(N.Refresh)

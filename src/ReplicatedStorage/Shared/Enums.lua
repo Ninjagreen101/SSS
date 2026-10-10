@@ -69,6 +69,7 @@ export type Action =
 	| "OpenQuestLog"
 	| "OpenMap"
 	| "OpenParty"
+	| "OpenEmotes"
 	| "OpenSettings"
 	| "OpenMenuHub"
 	| "CloseMenu"
@@ -96,6 +97,8 @@ export type TouchButtonId =
 	| "Interact"
 	| "Consumable1"
 	| "Menu"
+	| "Emote"
+	| "Ping"
 
 local Enums = {
 	Rarity = table.freeze({ "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "SpireForged" } :: { Rarity }),
@@ -168,6 +171,7 @@ local Enums = {
 		"OpenQuestLog",
 		"OpenMap",
 		"OpenParty",
+		"OpenEmotes",
 		"OpenSettings",
 		"OpenMenuHub",
 		"CloseMenu",
@@ -196,6 +200,8 @@ local Enums = {
 		"Interact",
 		"Consumable1",
 		"Menu",
+		"Emote",
+		"Ping",
 	} :: { TouchButtonId }),
 }
 

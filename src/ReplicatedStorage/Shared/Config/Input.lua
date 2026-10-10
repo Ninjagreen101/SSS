@@ -57,7 +57,7 @@ local actions: { [string]: ActionInfo } = {
 	Consumable1 = { Contexts = GAMEPLAY, Rebindable = true, Category = "Utility", Keyboard = { "Z" }, Gamepad = { "ButtonY" } },
 	Consumable2 = { Contexts = GAMEPLAY, Rebindable = true, Category = "Utility", Keyboard = { "X" }, Gamepad = {} },
 	Ping = { Contexts = GAMEPLAY, Rebindable = true, Category = "Utility", Keyboard = { "G" }, Gamepad = {} },
-	Emote = { Contexts = GAMEPLAY, Rebindable = true, Category = "Utility", Keyboard = { "T" }, Gamepad = {} },
+	Emote = { Contexts = GAMEPLAY, Rebindable = true, Category = "Utility", Keyboard = { "T" }, Gamepad = { "ButtonL2+ButtonY" } },
 	FreeCursor = { Contexts = GAMEPLAY, Rebindable = true, Category = "Utility", Keyboard = { "LeftAlt" }, Gamepad = {} },
 
 	-- Menus (work in both contexts so the same key toggles a menu closed)
@@ -70,6 +70,7 @@ local actions: { [string]: ActionInfo } = {
 	OpenQuestLog = { Contexts = BOTH, Rebindable = true, Category = "Menus", Keyboard = { "J" }, Gamepad = {} },
 	OpenMap = { Contexts = BOTH, Rebindable = true, Category = "Menus", Keyboard = { "M" }, Gamepad = {} },
 	OpenParty = { Contexts = BOTH, Rebindable = true, Category = "Menus", Keyboard = { "P" }, Gamepad = {} },
+	OpenEmotes = { Contexts = BOTH, Rebindable = true, Category = "Menus", Keyboard = { "Y" }, Gamepad = {} },
 	OpenSettings = { Contexts = BOTH, Rebindable = true, Category = "Menus", Keyboard = { "O" }, Gamepad = {} },
 	OpenMenuHub = { Contexts = BOTH, Rebindable = false, Category = "Menus", Keyboard = {}, Gamepad = { "ButtonSelect" } },
 	CloseMenu = { Contexts = MENU, Rebindable = false, Category = "Menus", Keyboard = { "Backspace" }, Gamepad = { "ButtonB" } },
@@ -102,6 +103,10 @@ local touchButtons: { TouchButtonInfo } = {
 	{ Id = "Interact", TapAction = "Interact", Corner = "BottomRight", Offset = Vector2.new(-392, -120), Size = 56, Glow = false },
 	{ Id = "Consumable1", TapAction = "Consumable1", Corner = "BottomRight", Offset = Vector2.new(-392, -200), Size = 48, Glow = false },
 	{ Id = "Menu", TapAction = "OpenMenuHub", Corner = "TopRight", Offset = Vector2.new(-36, 210), Size = 48, Glow = false },
+	-- Party ping (PartyController): tap = a "Here" ping where you tap next, hold = the ping radial.
+	{ Id = "Ping", TapAction = "Ping", Corner = "TopRight", Offset = Vector2.new(-92, 210), Size = 48, Glow = false },
+	-- Hold for the emote wheel (EmoteController); a quick tap leaves it open to tap an emote.
+	{ Id = "Emote", TapAction = "Emote", Corner = "TopRight", Offset = Vector2.new(-36, 266), Size = 48, Glow = false },
 }
 
 return TableUtil.DeepFreeze({

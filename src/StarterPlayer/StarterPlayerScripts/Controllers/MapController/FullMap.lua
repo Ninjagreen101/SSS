@@ -56,6 +56,7 @@ local QuestController = require(script.Parent.Parent.QuestController)
 local Surface = require(script.Parent.Surface)
 local Points = require(script.Parent.Points)
 local Icon = require(script.Parent.Icon)
+local Extra = require(script.Parent.Extra)
 
 local M = UITheme.Map
 local C = UITheme.Colors
@@ -184,6 +185,7 @@ function FullMap.Build(content: Frame, maid: Maid.Maid): any
 	})
 	selectionRing.Visible = false
 	local arrow = Icon.Arrow(iconLayer, M.IconSize, 20)
+	local extraDots: { Frame } = {}
 	local reticle: Frame = Create.new("Frame", {
 		Name = "Reticle",
 		AnchorPoint = Vector2.new(0.5, 0.5),
@@ -905,6 +907,32 @@ function FullMap.Build(content: Frame, maid: Maid.Maid): any
 			arrow.Position = UDim2.fromScale(unit.X, unit.Y)
 			local look = root.CFrame.LookVector
 			arrow.Rotation = math.deg(math.atan2(look.Z, look.X)) + 90
+		end
+		-- Extra markers (MapController.SetExtraMarkers: party members, pings), this floor only.
+		local extras = 0
+		local mapInfo = info
+		if mapInfo and floor == Surface.CurrentFloor() then
+			for _, marker in Extra.Collect() do
+				extras += 1
+				local dot: Frame? = extraDots[extras]
+				if not dot then
+					local made: Frame = Create.new("Frame", { Name = "Extra", AnchorPoint = Vector2.new(0.5, 0.5), BorderSizePixel = 0, ZIndex = 18, Parent = iconLayer })
+					Create.Corner(made, UDim.new(0.5, 0))
+					Create.Stroke(made, Color3.new(0, 0, 0), 1.5, 0.2)
+					extraDots[extras] = made
+					dot = made
+				end
+				assert(dot, "extra map dot")
+				local markerUnit = Surface.ToUnit(mapInfo, marker.World.X, marker.World.Z)
+				local side = math.floor((marker.Size or 9) * 1.5)
+				dot.Visible = true
+				dot.Size = UDim2.fromOffset(side, side)
+				dot.BackgroundColor3 = marker.Color
+				dot.Position = UDim2.fromScale(markerUnit.X, markerUnit.Y)
+			end
+		end
+		for index = extras + 1, #extraDots do
+			extraDots[index].Visible = false
 		end
 		-- Discovered Waystones breathe.
 		if not Motion.IsReduced() then

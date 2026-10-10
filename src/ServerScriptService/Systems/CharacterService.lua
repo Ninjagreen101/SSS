@@ -12,6 +12,8 @@
 	         as a Lost Current orb at the death spot (overwriting any older
 	         orb), and RespawnAt tells the client when it may rise again.
 	Respawn: RequestRespawn is honoured only while dead and after the delay.
+	Instances: in a reserved instance server nobody rises while FloorService
+	         holds them (non-members, the dead during a Guardian fight).
 	Lost Current: the owner recovers it by returning within the pickup radius
 	         (checked on the server; the orb itself is drawn by that client).
 ]]
@@ -218,6 +220,9 @@ local function spawnCharacter(player: Player)
 	if spawning[player] or player.Parent ~= Players or not DataService.IsLoaded(player) then
 		return
 	end
+	if FloorService.SpawnHeld(player) then
+		return
+	end
 	spawning[player] = true
 	local ok, err = pcall(function()
 		player:LoadCharacterAsync()
@@ -245,6 +250,10 @@ local function onRespawnRequest(player: Player)
 	end
 	local respawnAt = player:GetAttribute(A.RespawnAt)
 	if type(respawnAt) == "number" and now() < respawnAt - 0.1 then
+		return
+	end
+	if FloorService.SpawnHeld(player) then
+		Net.Fire("Notify", player, "Instances.SpawnHeld", {}, "Info")
 		return
 	end
 	spawnCharacter(player)

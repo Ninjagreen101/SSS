@@ -16,12 +16,15 @@ return TableUtil.DeepFreeze({
 		PingSeconds = 8, -- a ping marker lasts this long
 		PingCooldown = 1.0,
 		MaxPings = 3, -- per player at once
+		PingRange = 600, -- studs: a ping must land this close to the pinger
 		FrameUpdateHz = 4, -- party frame health/Current refresh
 	},
 
 	Finder = {
 		MaxListings = 40, -- per server
 		ListingSeconds = 900, -- a listing expires after 15 minutes unless refreshed
+		WatchSeconds = 60, -- a Refresh keeps sending you board updates this long (the open tab re-sends it)
+		NoteMax = 80, -- characters in a listing note (matches the RequestFinder validator)
 		Activities = { "Questing", "Dungeon:SunkenCistern", "Guardian:Brinewarden", "Farming" },
 	},
 

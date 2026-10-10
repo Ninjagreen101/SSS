@@ -621,6 +621,12 @@ function QuestService.IsCompleted(player: Player, questId: string): boolean
 	return data ~= nil and data.Quests.Completed[questId] ~= nil
 end
 
+-- The baked region at a world position ("Town", "Harbour"...), or nil outside the grid or when
+-- no grid is baked (TradeService's "in town" rule).
+function QuestService.RegionAt(position: Vector3): string?
+	return regionAt(position)
+end
+
 function QuestService.Init()
 	Net.On("RequestQuestAction", onAction)
 	Net.On("RequestTalk", onTalk)
